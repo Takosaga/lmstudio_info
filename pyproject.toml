@@ -10,6 +10,7 @@ dependencies = [
     "pyarrow>=13.0.0",
     "torch>=2.11.0",
     "transformers>=5.5.4",
+    "marimo>=0.23.2",
 ]
 
 [project.optional-dependencies]
