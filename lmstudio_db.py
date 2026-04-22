@@ -50,6 +50,9 @@ def init_db(db_path):
     Args:
         db_path: Path to the SQLite database file
     """
+    # Ensure parent directory exists
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    
     with get_connection(db_path) as conn:
         cursor = conn.cursor()
         
