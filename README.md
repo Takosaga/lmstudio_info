@@ -43,7 +43,7 @@ import lmstudio_tokens
 from lmstudio_db import init_db, upsert_conversation
 
 # Initialize database at your preferred location
-db_path = '/home/takosaga/.lmstudio_usage.db'
+db_path = '/data/.lmstudio_usage.db'
 
 # Extract and import
 json_files = lmstudio_tokens.scan_conversations()

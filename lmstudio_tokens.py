@@ -29,7 +29,8 @@ def extract_from_json(file_path):
     # Extract fields with defaults
     total_tokens_raw = chat_data.get('tokenCount')
     messages_list = chat_data.get('messages', []) if isinstance(chat_data, dict) else []
-    model_name = chat_data.get('modelName', '') or ''
+    last_used_model = chat_data.get('lastUsedModel')
+    model_name = last_used_model.get('identifier', '') if isinstance(last_used_model, dict) else last_used_model or ''
     created_at_ts = chat_data.get('createdAt')
     user_last_message_at_ts = chat_data.get('userLastMessagedAt')
 
