@@ -11,6 +11,7 @@ dependencies = [
     "torch>=2.11.0",
     "transformers>=5.5.4",
     "marimo>=0.23.2",
+    "altair>=6.1.0",
 ]
 
 [project.optional-dependencies]

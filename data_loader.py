@@ -41,7 +41,7 @@ def data_get_connection(db_path):
                 conn.close()
 
 
-def load_usage_data(db_path=None):
+def load_usage_data(db_path=None, start_date=None, end_date=None):
     """Load all conversation data into a pandas DataFrame
     
     Reads from the database and creates a DataFrame with columns:
@@ -54,6 +54,8 @@ def load_usage_data(db_path=None):
     
     Args:
         db_path: Path to SQLite database (if None, uses default location)
+        start_date: Filter conversations from this date (ISO format: 'YYYY-MM-DD')
+        end_date: Filter conversations until this date (ISO format: 'YYYY-MM-DD')
         
     Returns:
         pandas.DataFrame with conversation data
@@ -74,7 +76,7 @@ def load_usage_data(db_path=None):
     conn = sqlite3.connect(db_path)
     
     try:
-        # Query all data with proper types
+        # Build query with optional date filters
         query = """
             SELECT 
                 filename,
@@ -84,11 +86,24 @@ def load_usage_data(db_path=None):
                 created_at,
                 user_last_message_at,
                 updated_at
-            FROM conversations 
-            ORDER BY created_at NULLS LAST
+            FROM conversations
         """
+        params = []
         
-        df = pd.read_sql_query(query, conn)
+        if start_date or end_date:
+            query += " WHERE"
+            if start_date:
+                query += " created_at >= ?"
+                params.append(start_date)
+            if end_date:
+                if start_date:
+                    query += " AND"
+                query += " created_at <= ?"
+                params.append(end_date)
+        
+        query += " ORDER BY created_at NULLS LAST"
+        
+        df = pd.read_sql_query(query, conn, params=params if params else None)
         
         if df.empty:
             raise FileNotFoundError(f"Database exists but is empty at {db_path}")

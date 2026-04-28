@@ -68,7 +68,8 @@ def _(db_path):
 
 
 @app.cell
-def _(db_path, mo):
+def _(db_path):
+    import marimo as mo
     import sqlite3
     import pandas as pd
     import os
@@ -101,7 +102,7 @@ def _(db_path, mo):
 
             # Dropdown: "All models" + individual models
             dropdown_options = [('All models', '')] + [(m, m) for m in models]
-            dropdown = mo.ui.dropdown(options=dropdown_options, value='', label='Model')
+            dropdown = mo.ui.dropdown(options=dropdown_options, label='Model')
 
             # Reactive chart function
             def render_chart(selected_model):
@@ -110,21 +111,23 @@ def _(db_path, mo):
                     filtered = filtered[filtered['model'] == selected_model]
 
                 if filtered.empty:
-                    return mo.md("No data for selected model.")
+                    return mo.ui.chart(None)
 
                 daily = filtered.groupby('date')['token_count'].sum().reset_index()
                 daily['date'] = pd.to_datetime(daily['date'])
 
-                return mo.plots.bar(
-                    daily,
-                    x='date',
-                    y='token_count',
-                    title=f"Daily Token Usage{' — ' + selected_model if selected_model else ''}",
-                    color='model' if not selected_model else None,
+                import altair as alt
+                chart_obj = alt.Chart(daily).mark_bar().encode(
+                    x=alt.X('date:T', title='Date'),
+                    y=alt.Y('token_count:Q', title='Token Count'),
+                ).properties(
+                    title=f"Daily Token Usage{' — ' + selected_model if selected_model else ''}"
                 )
 
-            # Link dropdown to chart reactively
-            chart = dropdown.output(render_chart)
+                if not selected_model:
+                    chart_obj = chart_obj.encode(color=alt.Color('model:N', title='Model'))
+
+                return mo.ui.chart(chart_obj)
 
     return (chart, dropdown,)
 
