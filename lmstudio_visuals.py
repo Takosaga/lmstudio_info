@@ -67,5 +67,67 @@ def _(db_path):
     return
 
 
+@app.cell
+def _(db_path, mo):
+    import sqlite3
+    import pandas as pd
+    import os
+
+    # Load 2026 data with error handling
+    if not os.path.exists(db_path):
+        chart = mo.md("Database not found. Run the import cells first.")
+        dropdown = mo.null
+    else:
+        conn = sqlite3.connect(db_path)
+        try:
+            query = """
+                SELECT created_at, token_count, model
+                FROM conversations
+                WHERE created_at >= '2026-01-01'
+            """
+            df_2026 = pd.read_sql_query(query, conn)
+        finally:
+            conn.close()
+
+        if df_2026.empty:
+            chart = mo.md("No token usage data for 2026 yet.")
+            dropdown = mo.null
+        else:
+            # Truncate timestamps to date
+            df_2026['date'] = pd.to_datetime(df_2026['created_at']).dt.date
+
+            # Get unique models for dropdown
+            models = sorted(df_2026['model'].dropna().unique().tolist())
+
+            # Dropdown: "All models" + individual models
+            dropdown_options = [('All models', '')] + [(m, m) for m in models]
+            dropdown = mo.ui.dropdown(options=dropdown_options, value='', label='Model')
+
+            # Reactive chart function
+            def render_chart(selected_model):
+                filtered = df_2026.copy()
+                if selected_model:
+                    filtered = filtered[filtered['model'] == selected_model]
+
+                if filtered.empty:
+                    return mo.md("No data for selected model.")
+
+                daily = filtered.groupby('date')['token_count'].sum().reset_index()
+                daily['date'] = pd.to_datetime(daily['date'])
+
+                return mo.plots.bar(
+                    daily,
+                    x='date',
+                    y='token_count',
+                    title=f"Daily Token Usage{' — ' + selected_model if selected_model else ''}",
+                    color='model' if not selected_model else None,
+                )
+
+            # Link dropdown to chart reactively
+            chart = dropdown.output(render_chart)
+
+    return (chart, dropdown,)
+
+
 if __name__ == "__main__":
     app.run()
