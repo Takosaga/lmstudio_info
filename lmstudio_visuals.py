@@ -1,7 +1,7 @@
-import marimo
+import marimo as mo
 
 __generated_with = "0.23.2"
-app = marimo.App()
+app = mo.App()
 
 
 @app.cell
@@ -48,7 +48,7 @@ def _(db_path):
     print(df.head())
 
     # Summary statistics
-    stats = get_token_statistics()
+    stats = get_token_statistics(db_path)
     print(f"Total tokens: {stats['total_tokens']}")
     print(f"Conversations: {stats['conversation_count']}")
     print(f"Avg tokens/conv: {stats['avg_tokens_per_conv']:.0f}")
@@ -64,7 +64,7 @@ def _(db_path):
         start_date='2025-01-01',  # Use datetime.fromisoformat() for ISO strings
         end_date='2026-12-31'
     )
-    return
+    return (df, stats, recent_usage, usage_by_model,)
 
 
 @app.cell
