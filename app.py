@@ -264,7 +264,7 @@ def server(input, output, session):
         choices = {"": "Top 5 Models"}
         for m in models:
             choices[m] = m
-        ui.update_select("model_filter", choices=choices)
+        ui.update_select("model_filter", choices=choices, selected="")
 
 app = App(app_ui, server)
 
