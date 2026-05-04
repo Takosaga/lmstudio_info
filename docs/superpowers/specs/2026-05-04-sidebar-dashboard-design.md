@@ -54,11 +54,11 @@ Refactor the LMStudio Token Usage Dashboard from a `page_fluid` layout to a `pag
 
 ### 2. KPI Cards (centered row)
 
-Three cards in a centered row, all using consistent `output_text_verbatim` body text:
+Three cards in a centered row, all using consistent `output_text_verbatim` body text. All cards are reactive and update based on the selected Time Range filter:
 
-- **Total Tokens** — sum of all token counts, formatted with commas
-- **Average Monthly Tokens** — total tokens divided by distinct months, formatted with commas
-- **Top Model** — most-used model name and its token count, formatted with commas
+- **Total Tokens** — sum of token counts within the selected time range, formatted with commas
+- **Average Monthly Tokens** — total tokens in selected time range divided by distinct months in that range, formatted with commas
+- **Top Model** — most-used model name within the selected time range and its token count, formatted with commas
 
 ### 3. Chart
 
@@ -75,9 +75,9 @@ Three cards in a centered row, all using consistent `output_text_verbatim` body 
 
 1. App starts → reads `data/lmstudio_usage.db` via `load_usage_data()`
 2. Reactive values compute: total tokens, average monthly tokens, unique models, time-aggregated data
-3. User selects Time Period → reactive filter recalculates time periods
-4. User selects Model → chart re-renders with filtered data (top 5 or single model)
-5. User selects Time Range → all reactive values recalculate with date-filtered data
+3. User selects Time Range → KPI cards and chart recalculate with date-filtered data
+4. User selects Time Period → reactive filter recalculates time periods for chart
+5. User selects Model → chart re-renders with filtered data (top 5 or single model)
 6. Plotly renders stacked bar chart from aggregated data
 
 ## Error Handling
