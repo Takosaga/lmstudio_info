@@ -29,15 +29,40 @@ def _load_data():
 df = _load_data()
 
 # --- UI ---
-app_ui = ui.page_fluid(
-    ui.h2("LMStudio Token Usage", class_="text-center mb-4"),
-    # Summary cards row
+app_ui = ui.page_sidebar(
+    ui.sidebar(
+        ui.input_select(
+            "time_period",
+            "Time Period",
+            choices=["Daily", "Monthly"],
+        ),
+        ui.input_select(
+            "model_filter",
+            "Model",
+            choices={"": "Top 5 Models"},
+        ),
+        ui.input_radio_buttons(
+            "time_range",
+            "Time Range",
+            choices={
+                "7": "7 days",
+                "30": "30 days",
+                "90": "90 days",
+                "current_year": "Current Year",
+                "all": "All Time",
+            },
+            selected="all",
+            inline=True,
+        ),
+        open="desktop",
+    ),
+    # KPI Cards - centered
     ui.row(
         ui.column(
             4,
             ui.card(
                 ui.card_header("Total Tokens"),
-                ui.output_text("total_tokens"),
+                ui.output_text_verbatim("total_tokens"),
                 class_="text-center",
             ),
         ),
@@ -45,7 +70,7 @@ app_ui = ui.page_fluid(
             4,
             ui.card(
                 ui.card_header("Average Monthly Tokens"),
-                ui.output_text("avg_monthly"),
+                ui.output_text_verbatim("avg_monthly"),
                 class_="text-center",
             ),
         ),
@@ -57,54 +82,72 @@ app_ui = ui.page_fluid(
                 class_="text-center",
             ),
         ),
-    ),
-    # Controls
-    ui.row(
-        ui.column(
-            4,
-            ui.input_select("granularity", "Granularity", choices=["Daily", "Monthly"]),
-        ),
-        ui.column(
-            4,
-            ui.input_select("model_filter", "Model", choices={"": "All models"}),
-        ),
+        class_="justify-content-center mb-4 kpi-row",
     ),
     # Chart
     ui.card(
-        ui.card_header("Token Usage Over Time — Top 5 Models"),
+        ui.card_header("Token Usage Over Time"),
         output_widget("usage_chart"),
     ),
+    ui.include_css("assets/styles.css"),
+    title="LMStudio Token Usage",
+    fillable=True,
 )
 
 # --- Server ---
 def server(input, output, session):
+    @reactive.calc
+    def filtered_data():
+        """Filter data based on selected time range."""
+        if df is None:
+            return None
+        data = df.copy()
+        data["_date"] = pd.to_datetime(data["created_at"])
+        tr = input.time_range()
+        if tr == "7":
+            cutoff = data["_date"].max() - pd.Timedelta(days=7)
+            data = data[data["_date"] >= cutoff]
+        elif tr == "30":
+            cutoff = data["_date"].max() - pd.Timedelta(days=30)
+            data = data[data["_date"] >= cutoff]
+        elif tr == "90":
+            cutoff = data["_date"].max() - pd.Timedelta(days=90)
+            data = data[data["_date"] >= cutoff]
+        elif tr == "current_year":
+            cutoff = pd.Timestamp.now().replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+            data = data[data["_date"] >= cutoff]
+        # "all" returns unfiltered data
+        return data
+
     @output
     @render.text
     def total_tokens():
-        if df is None:
+        data = filtered_data()
+        if data is None or data.empty:
             return "No data available."
-        total = int(df["token_count"].sum())
+        total = int(data["token_count"].sum())
         return f"{total:,}"
 
     @output
     @render.text
     def avg_monthly():
-        if df is None:
+        data = filtered_data()
+        if data is None or data.empty:
             return "No data available."
-        df_copy = df.copy()
-        df_copy["_month"] = pd.to_datetime(df_copy["created_at"]).dt.to_period("M")
-        months = df_copy["_month"].nunique()
+        data["_month"] = pd.to_datetime(data["created_at"]).dt.to_period("M")
+        months = data["_month"].nunique()
         if months == 0:
             return "No data available."
-        avg = int(df["token_count"].sum() / months)
+        avg = int(data["token_count"].sum() / months)
         return f"{avg:,}"
 
     @output
     @render.text
     def top_model():
-        if df is None:
+        data = filtered_data()
+        if data is None or data.empty:
             return "No data available."
-        model_usage = df.groupby("model")["token_count"].sum().sort_values(ascending=False)
+        model_usage = data.groupby("model")["token_count"].sum().sort_values(ascending=False)
         if model_usage.empty:
             return "No data available."
         top = model_usage.index[0]
@@ -114,58 +157,67 @@ def server(input, output, session):
     @output
     @render_plotly()
     def usage_chart():
-        if df is None:
+        data = filtered_data()
+        if data is None or data.empty:
             return None
-        filtered = df.copy()
+        filtered = data.copy()
         # Model filter
         model = input.model_filter()
-        if model and model != "All models":
-            models_list = list(filtered["model"].dropna().unique())
-            if model in models_list:
-                filtered = filtered[filtered["model"] == model]
-        # Granularity
-        gran = input.granularity()
-        if gran == "Monthly":
-            filtered["_time"] = pd.to_datetime(filtered["created_at"]).dt.to_period("M").astype(str)
+        if model == "Top 5 Models":
+            # Get top 5 models by total token count
+            top_5_models = (
+                filtered.groupby("model")["token_count"]
+                .sum()
+                .nlargest(5)
+                .index.tolist()
+            )
+            agg_top5 = filtered[filtered["model"].isin(top_5_models)].copy()
+        elif model:
+            agg_top5 = filtered[filtered["model"] == model].copy()
         else:
-            filtered["_time"] = pd.to_datetime(filtered["created_at"]).dt.date.astype(str)
+            agg_top5 = filtered.copy()
+        # Time Period (granularity)
+        gran = input.time_period()
+        if gran == "Monthly":
+            agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.to_period("M").astype(str)
+        else:
+            agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.date.astype(str)
         # Aggregate
-        agg = filtered.groupby(["_time", "model"])["token_count"].sum().reset_index()
+        agg = agg_top5.groupby(["_time", "model"])["token_count"].sum().reset_index()
         if agg.empty:
             return None
 
-        # Top 5 models by total token count
-        top_5_models = (
-            agg.groupby("model")["token_count"]
-            .sum()
-            .nlargest(5)
-            .index.tolist()
-        )
-        agg_top5 = agg[agg["model"].isin(top_5_models)]
+        # Determine which models are displayed
+        if model == "Top 5 Models":
+            displayed_models = list(agg.groupby("model")["token_count"].sum().nlargest(5).index)
+        elif model:
+            displayed_models = [model]
+        else:
+            displayed_models = list(agg["model"].unique())
 
         # Order models consistently (largest first)
-        model_order = {m: i for i, m in enumerate(top_5_models)}
-        agg_top5["model_order"] = agg_top5["model"].map(model_order)
+        model_order = {m: i for i, m in enumerate(displayed_models)}
+        agg["model_order"] = agg["model"].map(model_order)
 
         # Distinct color palette
         palette = ["#2ec4b6", "#e16462", "#65a000", "#ff7f0e", "#7c3aed"]
-        palette = palette[:len(top_5_models)]
+        palette = palette[:len(displayed_models)]
 
         # Compute percentages for tooltips
-        period_totals = agg_top5.groupby("_time")["token_count"].transform("sum")
-        agg_top5["_pct"] = (agg_top5["token_count"] / period_totals * 100).round(1)
+        period_totals = agg.groupby("_time")["token_count"].transform("sum")
+        agg["_pct"] = (agg["token_count"] / period_totals * 100).round(1)
 
         # Plotly stacked bar with hover tooltips
         fig = px.bar(
-            agg_top5,
+            agg,
             x="_time",
             y="token_count",
             color="model",
-            color_discrete_map=dict(zip(top_5_models, palette)),
+            color_discrete_map=dict(zip(displayed_models, palette)),
             barmode="stack",
             labels={"_time": "Time", "token_count": "Tokens", "model": "Model"},
             category_orders={"model": [m for m, _ in sorted(model_order.items(), key=lambda x: x[1])]},
-            text=agg_top5["token_count"].apply(lambda x: f"{x:,}" if x > 100 else ""),
+            text=agg["token_count"].apply(lambda x: f"{x:,}" if x > 100 else ""),
             hover_data={
                 "model": True,
                 "token_count": True,
@@ -178,10 +230,12 @@ def server(input, output, session):
             hovertemplate="<b>%{customdata[0]}</b><br>Tokens: %{customdata[1]:,}<br>Period share: %{customdata[2]}<extra></extra>",
             textposition="inside",
         )
+        # Dynamic legend title
+        legend_title = "Top 5 Models" if model == "Top 5 Models" else "Model"
         fig.update_layout(
             xaxis_title="Time Period",
             yaxis_title="Total Tokens",
-            legend_title="Top 5 Models",
+            legend_title=legend_title,
             xaxis_tickangle=-45,
             uniformtext_minsize=10,
             uniformtext_mode="hide",
@@ -207,7 +261,7 @@ def server(input, output, session):
         if df is None:
             return
         models = sorted(df["model"].dropna().unique().tolist())
-        choices = {"": "All models"}
+        choices = {"": "Top 5 Models"}
         for m in models:
             choices[m] = m
         ui.update_select("model_filter", choices=choices)
