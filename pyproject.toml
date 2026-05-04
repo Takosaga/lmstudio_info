@@ -17,6 +17,7 @@ dependencies = [
     "shinywidgets>=0.8.0",
     "plotly>=6.7.0",
     "ridgeplot>=0.6.0",
+    "kaleido>=1.2.0",
 ]
 
 [project.optional-dependencies]

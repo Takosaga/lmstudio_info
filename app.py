@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
-from shiny import App, ui, render
+from shiny import App, ui, render, reactive
 
 
 # Resolve database path relative to project root
@@ -57,7 +57,7 @@ app_ui = ui.page_fluid(
         ),
         ui.column(
             4,
-            ui.input_select("model_filter", "Model", choices=["All models"]),
+            ui.input_select("model_filter", "Model", choices={"": "All models"}),
         ),
     ),
     # Chart
@@ -91,7 +91,7 @@ def server(input, output, session):
         return f"{avg:,}"
 
     @output
-    @render.plot
+    @render.image
     def usage_chart():
         if df is None:
             return None
@@ -127,15 +127,21 @@ def server(input, output, session):
             legend_title="Model",
             xaxis_tickangle=-45,
         )
-        return fig
+        import os
+        _CHART_PATH = Path(__file__).parent / "static" / "chart.png"
+        _CHART_PATH.parent.mkdir(exist_ok=True)
+        fig.write_image(str(_CHART_PATH))
+        return {"src": str(_CHART_PATH), "width": 800, "height": 400}
 
     # Update model filter options reactively
-    @ui.effect
+    @reactive.effect
     def update_model_options():
         if df is None:
             return
         models = sorted(df["model"].dropna().unique().tolist())
-        choices = [("All models", "")] + [(m, m) for m in models]
+        choices = {"": "All models"}
+        for m in models:
+            choices[m] = m
         ui.update_select("model_filter", choices=choices)
 
 app = App(app_ui, server)
