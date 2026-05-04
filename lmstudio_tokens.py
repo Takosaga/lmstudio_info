@@ -117,3 +117,22 @@ def main():
             print(f"  Model: {conv['model']}")
             if conv['created_at']:
                 print(f"  Created at: {conv['created_at'].isoformat()}")
+        
+        # Upsert conversations into database
+        from lmstudio_db import init_db, upsert_conversation
+        db_path = str(Path(__file__).parent / "data" / "lmstudio_usage.db")
+        init_db(db_path)
+        
+        inserted = 0
+        updated = 0
+        for conv in conversations:
+            result = upsert_conversation(db_path, conv)
+            if result:
+                inserted += 1
+            else:
+                updated += 1
+        print(f"\nDatabase updated: {inserted} inserted, {updated} updated")
+
+
+if __name__ == "__main__":
+    main()
