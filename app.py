@@ -30,11 +30,11 @@ df = _load_data()
 
 # Build model choices at startup to avoid reactive dropdown flash
 if df is not None and not df.empty:
-    _model_choices = {"": "Top 5 Models"}
+    _model_choices = {"__all__": "Top 5 Models"}
     for m in sorted(df["model"].dropna().unique().tolist()):
         _model_choices[m] = m
 else:
-    _model_choices = {"": "Top 5 Models"}
+    _model_choices = {"__all__": "Top 5 Models"}
 
 # --- UI ---
 app_ui = ui.page_sidebar(
@@ -42,12 +42,14 @@ app_ui = ui.page_sidebar(
         ui.input_select(
             "time_period",
             "Time Period",
-            choices=["Daily", "Monthly"],
+            choices=["Monthly", "Daily"],
+            selected="Monthly",
         ),
         ui.input_select(
             "model_filter",
             "Model",
             choices=_model_choices,
+            selected="__all__",
         ),
         ui.input_radio_buttons(
             "time_range",
@@ -59,7 +61,7 @@ app_ui = ui.page_sidebar(
                 "current_year": "Current Year",
                 "all": "All Time",
             },
-            selected="all",
+            selected="current_year",
             inline=True,
         ),
         open="desktop",
@@ -171,7 +173,7 @@ def server(input, output, session):
         filtered = data.copy()
         # Model filter
         model = input.model_filter()
-        if not model:
+        if not model or model == "__all__":
             # Get top 5 models by total token count
             top_5_models = (
                 filtered.groupby("model")["token_count"]
@@ -196,7 +198,7 @@ def server(input, output, session):
             return None
 
         # Determine which models are displayed
-        if not model:
+        if not model or model == "__all__":
             displayed_models = list(agg.groupby("model")["token_count"].sum().nlargest(5).index)
         elif model:
             displayed_models = [model]
@@ -269,12 +271,12 @@ def server(input, output, session):
         if df is None:
             return
         models = sorted(df["model"].dropna().unique().tolist())
-        choices = {"": "Top 5 Models"}
+        choices = {"__all__": "Top 5 Models"}
         for m in models:
             choices[m] = m
         current = input.model_filter()
         if current and current not in choices:
-            ui.update_select("model_filter", choices=choices, selected="")
+            ui.update_select("model_filter", choices=choices, selected="__all__")
         elif current:
             ui.update_select("model_filter", choices=choices, selected=current)
 
