@@ -5,7 +5,7 @@ from pathlib import Path
 import pandas as pd
 import plotly.express as px
 from shiny import App, ui, render
-from shiny.types import WarnOnExpr
+
 
 # Resolve database path relative to project root
 _DB_PATH = Path(__file__).parent / "data" / "lmstudio_usage.db"
@@ -36,7 +36,7 @@ app_ui = ui.page_fluid(
             6,
             ui.card(
                 ui.card_header("Total Tokens"),
-                ui.output_text("total_tokens", width="100%"),
+                ui.output_text("total_tokens"),
                 class_="text-center",
             ),
         ),
@@ -44,7 +44,7 @@ app_ui = ui.page_fluid(
             6,
             ui.card(
                 ui.card_header("Average Monthly Tokens"),
-                ui.output_text("avg_monthly", width="100%"),
+                ui.output_text("avg_monthly"),
                 class_="text-center",
             ),
         ),
