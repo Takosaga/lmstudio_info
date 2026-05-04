@@ -12,6 +12,11 @@ dependencies = [
     "transformers>=5.5.4",
     "marimo>=0.23.2",
     "altair>=6.1.0",
+    "shiny>=1.6.0",
+    "faicons>=0.2.2",
+    "shinywidgets>=0.8.0",
+    "plotly>=6.7.0",
+    "ridgeplot>=0.6.0",
 ]
 
 [project.optional-dependencies]
