@@ -189,13 +189,19 @@ def server(input, output, session):
         # Time Period (granularity)
         gran = input.time_period()
         if gran == "Monthly":
-            agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.to_period("M").astype(str)
+            agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.to_period("M")
         else:
-            agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.date.astype(str)
+            agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.date
         # Aggregate
         agg = agg_top5.groupby(["_time", "model"])["token_count"].sum().reset_index()
         if agg.empty:
             return None
+
+        # Format time labels for display
+        if gran == "Monthly":
+            agg["_time_label"] = agg["_time"].dt.strftime("%b %Y")
+        else:
+            agg["_time_label"] = agg["_time"].astype(str)
 
         # Determine which models are displayed
         if not model or model == "__all__":
@@ -220,19 +226,22 @@ def server(input, output, session):
         # Plotly stacked bar with hover tooltips
         fig = px.bar(
             agg,
-            x="_time",
+            x="_time_label",
             y="token_count",
             color="model",
             color_discrete_map=dict(zip(displayed_models, palette)),
             barmode="stack",
             labels={"_time": "Time", "token_count": "Tokens", "model": "Model"},
-            category_orders={"model": [m for m, _ in sorted(model_order.items(), key=lambda x: x[1])]},
+            category_orders={
+                "model": [m for m, _ in sorted(model_order.items(), key=lambda x: x[1])],
+                "_time_label": agg.drop_duplicates("_time")["_time_label"].tolist(),
+            },
             text=agg["token_count"].apply(lambda x: f"{x:,}" if x > 100 else ""),
             hover_data={
                 "model": True,
                 "token_count": True,
                 "_pct": ":.1f%%",
-                "_time": True,
+                "_time_label": True,
             },
             custom_data=["model", "token_count", "_pct"],
         )

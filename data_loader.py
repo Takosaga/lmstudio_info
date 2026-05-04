@@ -103,7 +103,7 @@ def load_usage_data(db_path=None, start_date=None, end_date=None):
         
         query += " ORDER BY created_at NULLS LAST"
         
-        df = pd.read_sql_query(query, conn, params=params if params else None)
+        df = pd.read_sql_query(query, conn, params=params if params else None, parse_dates=["created_at"])
         
         if df.empty:
             raise FileNotFoundError(f"Database exists but is empty at {db_path}")
