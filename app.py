@@ -5,6 +5,7 @@ from pathlib import Path
 import pandas as pd
 import plotly.express as px
 from shiny import App, ui, render, reactive
+from shinywidgets import output_widget, render_plotly
 
 
 # Resolve database path relative to project root
@@ -33,7 +34,7 @@ app_ui = ui.page_fluid(
     # Summary cards row
     ui.row(
         ui.column(
-            6,
+            4,
             ui.card(
                 ui.card_header("Total Tokens"),
                 ui.output_text("total_tokens"),
@@ -41,10 +42,18 @@ app_ui = ui.page_fluid(
             ),
         ),
         ui.column(
-            6,
+            4,
             ui.card(
                 ui.card_header("Average Monthly Tokens"),
                 ui.output_text("avg_monthly"),
+                class_="text-center",
+            ),
+        ),
+        ui.column(
+            4,
+            ui.card(
+                ui.card_header("Top Model"),
+                ui.output_text_verbatim("top_model"),
                 class_="text-center",
             ),
         ),
@@ -62,8 +71,8 @@ app_ui = ui.page_fluid(
     ),
     # Chart
     ui.card(
-        ui.card_header("Token Usage Over Time"),
-        ui.output_plot("usage_chart"),
+        ui.card_header("Token Usage Over Time — Top 5 Models"),
+        output_widget("usage_chart"),
     ),
 )
 
@@ -91,7 +100,19 @@ def server(input, output, session):
         return f"{avg:,}"
 
     @output
-    @render.image
+    @render.text
+    def top_model():
+        if df is None:
+            return "No data available."
+        model_usage = df.groupby("model")["token_count"].sum().sort_values(ascending=False)
+        if model_usage.empty:
+            return "No data available."
+        top = model_usage.index[0]
+        tokens = int(model_usage.iloc[0])
+        return f"{top}\n{tokens:,} tokens"
+
+    @output
+    @render_plotly()
     def usage_chart():
         if df is None:
             return None
@@ -112,26 +133,73 @@ def server(input, output, session):
         agg = filtered.groupby(["_time", "model"])["token_count"].sum().reset_index()
         if agg.empty:
             return None
-        # Plotly stacked bar
+
+        # Top 5 models by total token count
+        top_5_models = (
+            agg.groupby("model")["token_count"]
+            .sum()
+            .nlargest(5)
+            .index.tolist()
+        )
+        agg_top5 = agg[agg["model"].isin(top_5_models)]
+
+        # Order models consistently (largest first)
+        model_order = {m: i for i, m in enumerate(top_5_models)}
+        agg_top5["model_order"] = agg_top5["model"].map(model_order)
+
+        # Distinct color palette
+        palette = ["#2ec4b6", "#e16462", "#65a000", "#ff7f0e", "#7c3aed"]
+        palette = palette[:len(top_5_models)]
+
+        # Compute percentages for tooltips
+        period_totals = agg_top5.groupby("_time")["token_count"].transform("sum")
+        agg_top5["_pct"] = (agg_top5["token_count"] / period_totals * 100).round(1)
+
+        # Plotly stacked bar with hover tooltips
         fig = px.bar(
-            agg,
+            agg_top5,
             x="_time",
             y="token_count",
             color="model",
+            color_discrete_map=dict(zip(top_5_models, palette)),
             barmode="stack",
             labels={"_time": "Time", "token_count": "Tokens", "model": "Model"},
+            category_orders={"model": [m for m, _ in sorted(model_order.items(), key=lambda x: x[1])]},
+            text=agg_top5["token_count"].apply(lambda x: f"{x:,}" if x > 100 else ""),
+            hover_data={
+                "model": True,
+                "token_count": True,
+                "_pct": ":.1f%%",
+                "_time": True,
+            },
+            custom_data=["model", "token_count", "_pct"],
+        )
+        fig.update_traces(
+            hovertemplate="<b>%{customdata[0]}</b><br>Tokens: %{customdata[1]:,}<br>Period share: %{customdata[2]}<extra></extra>",
+            textposition="inside",
         )
         fig.update_layout(
-            xaxis_title="Time",
-            yaxis_title="Tokens",
-            legend_title="Model",
+            xaxis_title="Time Period",
+            yaxis_title="Total Tokens",
+            legend_title="Top 5 Models",
             xaxis_tickangle=-45,
+            uniformtext_minsize=10,
+            uniformtext_mode="hide",
+            margin=dict(l=60, r=30, t=30, b=60),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+            font=dict(size=12),
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=1.08,
+                xanchor="center",
+                x=0.5,
+                bgcolor="rgba(255,255,255,0.8)",
+            ),
         )
-        import os
-        _CHART_PATH = Path(__file__).parent / "static" / "chart.png"
-        _CHART_PATH.parent.mkdir(exist_ok=True)
-        fig.write_image(str(_CHART_PATH))
-        return {"src": str(_CHART_PATH), "width": 800, "height": 400}
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="LightGray")
+        return fig
 
     # Update model filter options reactively
     @reactive.effect
