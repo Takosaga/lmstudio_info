@@ -28,6 +28,14 @@ def _load_data():
 # Load data before app starts (module-level)
 df = _load_data()
 
+# Build model choices at startup to avoid reactive dropdown flash
+if df is not None and not df.empty:
+    _model_choices = {"": "Top 5 Models"}
+    for m in sorted(df["model"].dropna().unique().tolist()):
+        _model_choices[m] = m
+else:
+    _model_choices = {"": "Top 5 Models"}
+
 # --- UI ---
 app_ui = ui.page_sidebar(
     ui.sidebar(
@@ -39,7 +47,7 @@ app_ui = ui.page_sidebar(
         ui.input_select(
             "model_filter",
             "Model",
-            choices={"": "Top 5 Models"},
+            choices=_model_choices,
         ),
         ui.input_radio_buttons(
             "time_range",
@@ -163,7 +171,7 @@ def server(input, output, session):
         filtered = data.copy()
         # Model filter
         model = input.model_filter()
-        if model == "Top 5 Models":
+        if not model:
             # Get top 5 models by total token count
             top_5_models = (
                 filtered.groupby("model")["token_count"]
@@ -188,7 +196,7 @@ def server(input, output, session):
             return None
 
         # Determine which models are displayed
-        if model == "Top 5 Models":
+        if not model:
             displayed_models = list(agg.groupby("model")["token_count"].sum().nlargest(5).index)
         elif model:
             displayed_models = [model]
@@ -231,7 +239,7 @@ def server(input, output, session):
             textposition="inside",
         )
         # Dynamic legend title
-        legend_title = "Top 5 Models" if model == "Top 5 Models" else "Model"
+        legend_title = "Top 5 Models" if not model else "Model"
         fig.update_layout(
             xaxis_title="Time Period",
             yaxis_title="Total Tokens",
@@ -255,7 +263,7 @@ def server(input, output, session):
         fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="LightGray")
         return fig
 
-    # Update model filter options reactively
+    # Update model filter options reactively (only if data changes after startup)
     @reactive.effect
     def update_model_options():
         if df is None:
@@ -264,7 +272,11 @@ def server(input, output, session):
         choices = {"": "Top 5 Models"}
         for m in models:
             choices[m] = m
-        ui.update_select("model_filter", choices=choices, selected="")
+        current = input.model_filter()
+        if current and current not in choices:
+            ui.update_select("model_filter", choices=choices, selected="")
+        elif current:
+            ui.update_select("model_filter", choices=choices, selected=current)
 
 app = App(app_ui, server)
 
