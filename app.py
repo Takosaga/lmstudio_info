@@ -13,7 +13,7 @@ _DB_PATH = Path(__file__).parent / "data" / "lmstudio_usage.db"
 
 # Load data from all sources at startup (module-level)
 def _load_all_sources():
-    """Scan both LMStudio and OpenCode, then load unified data."""
+    """Scan LMStudio conversations and sync OpenCode tokens, then load unified data."""
     # 1. Scan and upsert LMStudio conversations
     from lmstudio_tokens import scan_conversations as ls_scan, load_conversations_from_files as ls_load
     from lmstudio_db import init_db, upsert_conversation
@@ -26,14 +26,9 @@ def _load_all_sources():
             conv.setdefault('source', 'lmstudio')
             upsert_conversation(str(_DB_PATH), conv)
 
-    # 2. Scan and upsert OpenCode messages
-    from opencode_tokens import scan_conversations as oc_scan, load_conversations_from_files as oc_load
-    json_files = oc_scan()
-    if json_files:
-        conversations = oc_load(json_files)
-        init_db(str(_DB_PATH))
-        for conv in conversations:
-            upsert_conversation(str(_DB_PATH), conv)  # source='opencode' already set
+    # 2. Sync OpenCode messages from opencode.db (NEW — replaces opencode_tokens)
+    import opencode_db
+    opencode_db.sync_opencode_tokens()
 
     # 3. Load unified data from DB
     from data_loader import load_unified_data
