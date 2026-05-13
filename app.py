@@ -11,22 +11,40 @@ from shinywidgets import output_widget, render_plotly
 # Resolve database path relative to project root
 _DB_PATH = Path(__file__).parent / "data" / "lmstudio_usage.db"
 
-# Load data once at startup
-def _load_data():
-    """Load conversation data from the database."""
-    if not _DB_PATH.exists():
-        return None
-    from data_loader import load_usage_data
+# Load data from all sources at startup (module-level)
+def _load_all_sources():
+    """Scan both LMStudio and OpenCode, then load unified data."""
+    # 1. Scan and upsert LMStudio conversations
+    from lmstudio_tokens import scan_conversations as ls_scan, load_conversations_from_files as ls_load
+    from lmstudio_db import init_db, upsert_conversation
+
+    json_files = ls_scan()
+    if json_files:
+        conversations = ls_load(json_files)
+        init_db(str(_DB_PATH))
+        for conv in conversations:
+            conv.setdefault('source', 'lmstudio')
+            upsert_conversation(str(_DB_PATH), conv)
+
+    # 2. Scan and upsert OpenCode messages
+    from opencode_tokens import scan_conversations as oc_scan, load_conversations_from_files as oc_load
+    json_files = oc_scan()
+    if json_files:
+        conversations = oc_load(json_files)
+        init_db(str(_DB_PATH))
+        for conv in conversations:
+            upsert_conversation(str(_DB_PATH), conv)  # source='opencode' already set
+
+    # 3. Load unified data from DB
+    from data_loader import load_unified_data
     try:
-        df = load_usage_data(str(_DB_PATH))
-        if df.empty:
-            return None
-        return df
+        df = load_unified_data(str(_DB_PATH))
+        return df if not df.empty else None
     except Exception:
         return None
 
-# Load data before app starts (module-level)
-df = _load_data()
+
+df = _load_all_sources()
 
 # Build model choices at startup to avoid reactive dropdown flash
 if df is not None and not df.empty:
@@ -50,6 +68,20 @@ app_ui = ui.page_sidebar(
             "Model",
             choices=_model_choices,
             selected="__all__",
+        ),
+        ui.input_radio_buttons(
+            "source_filter",
+            "Source",
+            choices={"all": "Both", "lmstudio": "LMStudio", "opencode": "OpenCode"},
+            selected="all",
+            inline=True,
+        ),
+        ui.input_radio_buttons(
+            "breakdown_by",
+            "Breakdown by",
+            choices={"model": "Model", "token_type": "Token Type"},
+            selected="model",
+            inline=True,
         ),
         ui.input_radio_buttons(
             "time_range",
@@ -108,10 +140,19 @@ app_ui = ui.page_sidebar(
 def server(input, output, session):
     @reactive.calc
     def filtered_data():
-        """Filter data based on selected time range."""
+        """Filter data based on selected time range and source."""
         if df is None:
             return None
         data = df.copy()
+
+        # Source filter
+        src = input.source_filter()
+        if src and src != "all":
+            data = data[data["source"] == src]
+
+        if data.empty:
+            return data
+
         data["_date"] = pd.to_datetime(data["created_at"])
         tr = input.time_range()
         if tr == "7":
@@ -170,87 +211,149 @@ def server(input, output, session):
         data = filtered_data()
         if data is None or data.empty:
             return None
-        filtered = data.copy()
-        # Model filter
+        agg_top5 = data.copy()
+
+        # Model filter (only relevant when breakdown_by == "model")
         model = input.model_filter()
-        if not model or model == "__all__":
-            # Get top 5 models by total token count
-            top_5_models = (
-                filtered.groupby("model")["token_count"]
-                .sum()
-                .nlargest(5)
-                .index.tolist()
-            )
-            agg_top5 = filtered[filtered["model"].isin(top_5_models)].copy()
-        elif model:
-            agg_top5 = filtered[filtered["model"] == model].copy()
-        else:
-            agg_top5 = filtered.copy()
-        # Time Period (granularity)
+        if input.breakdown_by() != "token_type":
+            if not model or model == "__all__":
+                top_5_models = (
+                    agg_top5.groupby("model")["token_count"]
+                    .sum()
+                    .nlargest(5)
+                    .index.tolist()
+                )
+                agg_top5 = agg_top5[agg_top5["model"].isin(top_5_models)].copy()
+            elif model:
+                agg_top5 = agg_top5[agg_top5["model"] == model].copy()
+
         gran = input.time_period()
         if gran == "Monthly":
             agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.to_period("M")
         else:
             agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.date
-        # Aggregate
-        agg = agg_top5.groupby(["_time", "model"])["token_count"].sum().reset_index()
-        if agg.empty:
-            return None
 
-        # Format time labels for display
-        if gran == "Monthly":
-            agg["_time_label"] = agg["_time"].dt.strftime("%b %Y")
+        # Determine grouping column based on breakdown toggle
+        if input.breakdown_by() == "token_type":
+            # Pivot token type columns into long format for stacking
+            token_cols = ['input_tokens', 'output_tokens', 'reasoning_tokens', 'cache_read_tokens']
+            agg = agg_top5.groupby("_time")[token_cols].sum().reset_index()
+            agg_melted = agg.melt(id_vars=['_time'], value_vars=token_cols,
+                                   var_name='token_type', value_name='token_count')
+            agg_melted['_time_label'] = agg_melted['_time'].apply(
+                lambda x: x.strftime("%b %Y") if hasattr(x, 'strftime') else str(x)
+            )
+            # Format token type names for display
+            agg_melted['token_type'] = agg_melted['token_type'].map({
+                'input_tokens': 'Input',
+                'output_tokens': 'Output',
+                'reasoning_tokens': 'Reasoning',
+                'cache_read_tokens': 'Cache Read',
+            })
+
+            # Determine displayed token types (those with non-zero counts)
+            displayed_types = agg_melted['token_type'].unique().tolist()
+            if not displayed_types:
+                return None
+
+            # Order consistently
+            type_order = ['Input', 'Output', 'Reasoning', 'Cache Read']
+            type_order = [t for t in type_order if t in displayed_types]
+
+            agg_melted['type_order'] = agg_melted['token_type'].map({t: i for i, t in enumerate(type_order)})
+
+            palette = ['#457b9d', '#e63946', '#2a9d8f', '#f4a261']
+            palette = palette[:len(type_order)]
+
+            agg_melted['_pct'] = agg_melted.groupby('_time')['token_count'].transform(lambda x: (x / x.sum() * 100).round(1))
+
+            fig = px.bar(
+                agg_melted,
+                x='_time_label',
+                y='token_count',
+                color='token_type',
+                color_discrete_map=dict(zip(type_order, palette)),
+                barmode='stack',
+                labels={'_time': 'Time', 'token_count': 'Tokens', 'token_type': 'Token Type'},
+                category_orders={
+                    'token_type': type_order,
+                    '_time_label': agg_melted.drop_duplicates('_time')['_time_label'].tolist(),
+                },
+                text=agg_melted['token_count'].apply(lambda x: f"{x:,}" if x > 100 else ""),
+                hover_data={
+                    'token_type': True,
+                    'token_count': True,
+                    '_pct': ':.1f%%',
+                    '_time_label': True,
+                },
+                custom_data=['token_type', 'token_count', '_pct'],
+            )
+            fig.update_traces(
+                hovertemplate="<b>%{customdata[0]}</b><br>Tokens: %{customdata[1]:,}<br>Period share: %{customdata[2]}<extra></extra>",
+                textposition="inside",
+            )
+            legend_title = "Top 5 Token Types" if not model else "Token Type"
         else:
-            agg["_time_label"] = agg["_time"].astype(str)
+            # === MODEL-BASED CHART LOGIC (unchanged from original) ===
+            agg = agg_top5.groupby(["_time", "model"])["token_count"].sum().reset_index()
+            if agg.empty:
+                return None
 
-        # Determine which models are displayed
-        if not model or model == "__all__":
-            displayed_models = list(agg.groupby("model")["token_count"].sum().nlargest(5).index)
-        elif model:
-            displayed_models = [model]
-        else:
-            displayed_models = list(agg["model"].unique())
+            # Format time labels for display
+            if gran == "Monthly":
+                agg["_time_label"] = agg["_time"].dt.strftime("%b %Y")
+            else:
+                agg["_time_label"] = agg["_time"].astype(str)
 
-        # Order models consistently (largest first)
-        model_order = {m: i for i, m in enumerate(displayed_models)}
-        agg["model_order"] = agg["model"].map(model_order)
+            # Determine which models are displayed
+            if not model or model == "__all__":
+                displayed_models = list(agg.groupby("model")["token_count"].sum().nlargest(5).index)
+            elif model:
+                displayed_models = [model]
+            else:
+                displayed_models = list(agg["model"].unique())
 
-        # Distinct color palette
-        palette = ["#2ec4b6", "#e16462", "#65a000", "#ff7f0e", "#7c3aed"]
-        palette = palette[:len(displayed_models)]
+            # Order models consistently (largest first)
+            model_order = {m: i for i, m in enumerate(displayed_models)}
+            agg["model_order"] = agg["model"].map(model_order)
 
-        # Compute percentages for tooltips
-        period_totals = agg.groupby("_time")["token_count"].transform("sum")
-        agg["_pct"] = (agg["token_count"] / period_totals * 100).round(1)
+            # Distinct color palette
+            palette = ["#2ec4b6", "#e16462", "#65a000", "#ff7f0e", "#7c3aed"]
+            palette = palette[:len(displayed_models)]
 
-        # Plotly stacked bar with hover tooltips
-        fig = px.bar(
-            agg,
-            x="_time_label",
-            y="token_count",
-            color="model",
-            color_discrete_map=dict(zip(displayed_models, palette)),
-            barmode="stack",
-            labels={"_time": "Time", "token_count": "Tokens", "model": "Model"},
-            category_orders={
-                "model": [m for m, _ in sorted(model_order.items(), key=lambda x: x[1])],
-                "_time_label": agg.drop_duplicates("_time")["_time_label"].tolist(),
-            },
-            text=agg["token_count"].apply(lambda x: f"{x:,}" if x > 100 else ""),
-            hover_data={
-                "model": True,
-                "token_count": True,
-                "_pct": ":.1f%%",
-                "_time_label": True,
-            },
-            custom_data=["model", "token_count", "_pct"],
-        )
-        fig.update_traces(
-            hovertemplate="<b>%{customdata[0]}</b><br>Tokens: %{customdata[1]:,}<br>Period share: %{customdata[2]}<extra></extra>",
-            textposition="inside",
-        )
-        # Dynamic legend title
-        legend_title = "Top 5 Models" if not model else "Model"
+            # Compute percentages for tooltips
+            period_totals = agg.groupby("_time")["token_count"].transform("sum")
+            agg["_pct"] = (agg["token_count"] / period_totals * 100).round(1)
+
+            # Plotly stacked bar with hover tooltips
+            fig = px.bar(
+                agg,
+                x="_time_label",
+                y="token_count",
+                color="model",
+                color_discrete_map=dict(zip(displayed_models, palette)),
+                barmode="stack",
+                labels={"_time": "Time", "token_count": "Tokens", "model": "Model"},
+                category_orders={
+                    "model": [m for m, _ in sorted(model_order.items(), key=lambda x: x[1])],
+                    "_time_label": agg.drop_duplicates("_time")["_time_label"].tolist(),
+                },
+                text=agg["token_count"].apply(lambda x: f"{x:,}" if x > 100 else ""),
+                hover_data={
+                    "model": True,
+                    "token_count": True,
+                    "_pct": ":.1f%%",
+                    "_time_label": True,
+                },
+                custom_data=["model", "token_count", "_pct"],
+            )
+            fig.update_traces(
+                hovertemplate="<b>%{customdata[0]}</b><br>Tokens: %{customdata[1]:,}<br>Period share: %{customdata[2]}<extra></extra>",
+                textposition="inside",
+            )
+            # Dynamic legend title
+            legend_title = "Top 5 Models" if not model else "Model"
+
         fig.update_layout(
             xaxis_title="Time Period",
             yaxis_title="Total Tokens",

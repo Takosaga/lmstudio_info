@@ -119,6 +119,52 @@ def load_usage_data(db_path=None, start_date=None, end_date=None):
         conn.close()
 
 
+def load_unified_data(db_path, start_date=None, end_date=None):
+    """Load all conversation data (both sources) into a pandas DataFrame.
+
+    Returns all columns from the conversations table including new ones:
+    - source: 'lmstudio' or 'opencode'
+    - input_tokens, output_tokens, reasoning_tokens, cache_read_tokens
+
+    Args:
+        db_path: Path to SQLite database
+        start_date: Optional date filter (ISO format)
+        end_date: Optional date filter (ISO format)
+
+    Returns:
+        pandas.DataFrame with all conversation rows
+    """
+    conn = sqlite3.connect(db_path)
+
+    try:
+        query = "SELECT * FROM conversations"
+        params = []
+
+        if start_date or end_date:
+            query += " WHERE"
+            if start_date:
+                query += " created_at >= ?"
+                params.append(start_date)
+            if end_date:
+                if start_date:
+                    query += " AND"
+                query += " created_at <= ?"
+                params.append(end_date)
+
+        query += " ORDER BY created_at NULLS LAST"
+
+        df = pd.read_sql_query(query, conn, params=params if params else None, parse_dates=["created_at"])
+
+        return df
+
+    except sqlite3.OperationalError as e:
+        if "no such table" in str(e).lower():
+            raise FileNotFoundError(f"No 'conversations' table found in database at {db_path}")
+        raise
+    finally:
+        conn.close()
+
+
 def get_connection(db_path):
     """Get a database connection
     

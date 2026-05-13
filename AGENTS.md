@@ -6,7 +6,7 @@
 uv sync                              # install deps (Python 3.12)
 uv run pytest                        # run all tests
 uv run pytest tests/test_foo.py      # single test file
-uv run python app.py                 # run Shiny dashboard (reads data/lmstudio_usage.db)
+uv run shiny run app.py                 # run Shiny dashboard (reads data/lmstudio_usage.db)
 ```
 
 No lint/typecheck config exists. No pre-commit hooks.

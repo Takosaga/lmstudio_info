@@ -65,10 +65,31 @@ def init_db(db_path):
                 model TEXT DEFAULT '',
                 created_at TIMESTAMP,
                 user_last_message_at TIMESTAMP,
-                updated_at TIMESTAMP
+                updated_at TIMESTAMP,
+                source TEXT DEFAULT 'lmstudio',
+                input_tokens INTEGER DEFAULT 0,
+                output_tokens INTEGER DEFAULT 0,
+                reasoning_tokens INTEGER DEFAULT 0,
+                cache_read_tokens INTEGER DEFAULT 0
             )
         ''')
-        
+
+        # Schema migration: add new columns if table existed without them
+        cursor.execute("PRAGMA table_info(conversations)")
+        existing_columns = [row[1] for row in cursor.fetchall()]
+        new_columns = [
+            ('source', "TEXT DEFAULT 'lmstudio'"),
+            ('input_tokens', 'INTEGER DEFAULT 0'),
+            ('output_tokens', 'INTEGER DEFAULT 0'),
+            ('reasoning_tokens', 'INTEGER DEFAULT 0'),
+            ('cache_read_tokens', 'INTEGER DEFAULT 0'),
+        ]
+        for col_name, col_def in new_columns:
+            if col_name not in existing_columns:
+                cursor.execute(
+                    f"ALTER TABLE conversations ADD COLUMN {col_name} {col_def}"
+                )
+
         conn.commit()
 
 
@@ -114,9 +135,30 @@ def get_or_create_table(conn):
                 model TEXT DEFAULT '',
                 created_at TIMESTAMP,
                 user_last_message_at TIMESTAMP,
-                updated_at TIMESTAMP
+                updated_at TIMESTAMP,
+                source TEXT DEFAULT 'lmstudio',
+                input_tokens INTEGER DEFAULT 0,
+                output_tokens INTEGER DEFAULT 0,
+                reasoning_tokens INTEGER DEFAULT 0,
+                cache_read_tokens INTEGER DEFAULT 0
             )
         ''')
+
+    # Schema migration: add new columns if table existed without them
+    cursor.execute("PRAGMA table_info(conversations)")
+    existing_columns = [row[1] for row in cursor.fetchall()]
+    new_columns = [
+        ('source', "TEXT DEFAULT 'lmstudio'"),
+        ('input_tokens', 'INTEGER DEFAULT 0'),
+        ('output_tokens', 'INTEGER DEFAULT 0'),
+        ('reasoning_tokens', 'INTEGER DEFAULT 0'),
+        ('cache_read_tokens', 'INTEGER DEFAULT 0'),
+    ]
+    for col_name, col_def in new_columns:
+        if col_name not in existing_columns:
+            cursor.execute(
+                f"ALTER TABLE conversations ADD COLUMN {col_name} {col_def}"
+            )
 
 
 def upsert_conversation(db_path, conversation_data):
@@ -155,17 +197,33 @@ def upsert_conversation(db_path, conversation_data):
             # Check if data has actually changed
             cursor.execute(
                 """
-                    SELECT token_count, message_count, model 
+                    SELECT token_count, message_count, model, source,
+                           input_tokens, output_tokens, reasoning_tokens, cache_read_tokens
                     FROM conversations WHERE filename = ?
                 """,
                 (filename,)
             )
             existing = cursor.fetchone()
-            
+
             new_token_count = conversation_data.get('token_count', 0)
             new_message_count = conversation_data.get('message_count', 0)
-            
-            if existing and new_token_count == existing[0] and new_message_count == existing[1]:
+            new_input_tokens = conversation_data.get('input_tokens', 0)
+            new_output_tokens = conversation_data.get('output_tokens', 0)
+            new_reasoning_tokens = conversation_data.get('reasoning_tokens', 0)
+            new_cache_read_tokens = conversation_data.get('cache_read_tokens', 0)
+
+            existing_source = existing[3] if existing else None
+            existing_input = existing[4] if existing else None
+            existing_output = existing[5] if existing else None
+            existing_reasoning = existing[6] if existing else None
+            existing_cache = existing[7] if existing else None
+
+            if (existing and new_token_count == existing[0]
+                    and new_message_count == existing[1]
+                    and new_input_tokens == existing_input
+                    and new_output_tokens == existing_output
+                    and new_reasoning_tokens == existing_reasoning
+                    and new_cache_read_tokens == existing_cache):
                 # No significant change, skip update
                 return False
             
@@ -212,8 +270,9 @@ def upsert_conversation(db_path, conversation_data):
             cursor.execute('''
                 INSERT INTO conversations (
                     filename, token_count, message_count, model,
-                    created_at, user_last_message_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    created_at, user_last_message_at, updated_at,
+                    source, input_tokens, output_tokens, reasoning_tokens, cache_read_tokens
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 filename,
                 conversation_data.get('token_count', 0),
@@ -221,7 +280,12 @@ def upsert_conversation(db_path, conversation_data):
                 conversation_data.get('model', ''),
                 conversation_data.get('created_at'),
                 conversation_data.get('user_last_message_at', None),
-                current_time
+                current_time,
+                conversation_data.get('source', 'lmstudio'),
+                conversation_data.get('input_tokens', 0),
+                conversation_data.get('output_tokens', 0),
+                conversation_data.get('reasoning_tokens', 0),
+                conversation_data.get('cache_read_tokens', 0),
             ))
             conn.commit()
 
