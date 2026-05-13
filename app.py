@@ -260,7 +260,11 @@ def server(input, output, session):
             palette = ['#457b9d', '#e63946', '#2a9d8f', '#f4a261']
             palette = palette[:len(type_order)]
 
-            agg_melted['_pct'] = agg_melted.groupby('_time')['token_count'].transform(lambda x: (x / x.sum() * 100).round(1))
+            def _safe_pct(x):
+                s = x.sum()
+                return (x / s * 100).round(1) if s > 0 else 0.0
+
+            agg_melted['_pct'] = agg_melted.groupby('_time')['token_count'].transform(_safe_pct)
 
             fig = px.bar(
                 agg_melted,

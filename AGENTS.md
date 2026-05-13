@@ -6,21 +6,22 @@
 uv sync                              # install deps (Python 3.12)
 uv run pytest                        # run all tests
 uv run pytest tests/test_foo.py      # single test file
-uv run shiny run app.py                 # run Shiny dashboard (reads data/lmstudio_usage.db)
+uv run shiny run app.py              # run Shiny dashboard (reads data/lmstudio_usage.db)
 ```
 
-No lint/typecheck config exists. No pre-commit hooks.
+No lint/typecheck config. No pre-commit hooks.
 
 ## Architecture
 
-Four modules, one data directory:
+Five modules, one data directory:
 
 | Module | Role | Key entrypoints |
 |---|---|---|
 | `lmstudio_tokens.py` | Parse `~/.lmstudio/conversations/*.json` → dicts | `scan_conversations()`, `extract_from_json()`, `load_conversations_from_files()` |
 | `lmstudio_db.py` | SQLite CRUD on `conversations` table | `init_db()`, `upsert_conversation()`, `get_usage_by_model()` |
-| `data_loader.py` | Notebook/analysis interface (pandas DataFrames) | `load_usage_data()`, `get_token_statistics()`, `load_conversations_by_model()` |
-| `app.py` | Shiny web dashboard | runs on `127.0.0.1:3000` in `if __name__ == "__main__"` block |
+| `opencode_db.py` | Sync OpenCode messages from `~/.local/share/opencode/opencode.db` → lmstudio_usage.db | `sync_opencode_tokens()` |
+| `data_loader.py` | Notebook/analysis interface (pandas DataFrames) | `load_usage_data()`, `load_unified_data()`, `get_token_statistics()` |
+| `app.py` | Shiny web dashboard | scans both LMStudio + OpenCode at startup, runs on `127.0.0.1:3000` |
 
 Data lives at `data/lmstudio_usage.db`. The app resolves it as `Path(__file__).parent / "data" / "lmstudio_usage.db"`.
 
@@ -29,5 +30,7 @@ Data lives at `data/lmstudio_usage.db`. The app resolves it as `Path(__file__).p
 - Tests add `sys.path.insert(0, parent)` — always run from project root with `uv run pytest`.
 - `app.py` loads the database once at module level; changes to the DB require a restart.
 - `data_loader.py` default db path is `~/.lmstudio/usage.db`, NOT `data/lmstudio_usage.db`. Pass `db_path` explicitly when testing outside the app.
-- Timestamps in LMStudio JSON may be seconds or milliseconds — `extract_from_json()` auto-detects by magnitude.
+- Timestamps in LMStudio JSON may be seconds or milliseconds — `extract_from_json()` auto-detects by magnitude (threshold: 3999999999).
 - The package name in `pyproject.toml` is `"projects"` (not `lmstudio_info`).
+- `opencode_tokens.py` was removed; use `opencode_db.sync_opencode_tokens()` instead.
+- Conversations have a `source` column: `'lmstudio'` or `'opencode'`. Use `load_unified_data()` to query both sources together.
