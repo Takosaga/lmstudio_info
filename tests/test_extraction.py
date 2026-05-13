@@ -236,6 +236,138 @@ def test_load_conversations_from_files():
     assert len(conversations) == 2
 
 
+def test_extract_token_type_breakdown():
+    """Test extraction of input/output token breakdowns from nested genInfo.stats."""
+    
+    tmpdir = tempfile.mkdtemp()
+    test_dir = Path(tmpdir) / '.lmstudio' / 'conversations'
+    os.makedirs(test_dir)
+    
+    # Realistic LMStudio JSON with nested genInfo.stats containing token breakdowns
+    json_data = {
+        "tokenCount": 2065,
+        "messages": [
+            {"role": "user", "content": "Hello"},
+            {
+                "versions": [
+                    {
+                        "steps": [
+                            {
+                                "genInfo": {
+                                    "stats": {
+                                        "promptTokensCount": 1959,
+                                        "predictedTokensCount": 106,
+                                        "totalTokensCount": 2065
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "createdAt": 1709251200
+    }
+    
+    import json as json_mod
+    with patch('lmstudio_tokens.open', new_callable=mock_open,
+               read_data=json_mod.dumps(json_data)) as mock_file:
+        
+        file_path = str(test_dir / 'test.json')
+        result = lmstudio_tokens.extract_from_json(file_path)
+
+        assert result['input_tokens'] == 1959
+        assert result['output_tokens'] == 106
+        assert result['reasoning_tokens'] == 0
+        assert result['cache_read_tokens'] == 0
+
+
+def test_extract_token_type_multiple_steps():
+    """Test token type extraction sums across multiple regeneration steps."""
+    
+    tmpdir = tempfile.mkdtemp()
+    test_dir = Path(tmpdir) / '.lmstudio' / 'conversations'
+    os.makedirs(test_dir)
+    
+    # Multiple regeneration steps - should sum all genInfo.stats
+    json_data = {
+        "tokenCount": 3462,
+        "messages": [
+            {"role": "user", "content": "Hello"},
+            {
+                "versions": [
+                    {
+                        "steps": [
+                            {
+                                "genInfo": {
+                                    "stats": {
+                                        "promptTokensCount": 100,
+                                        "predictedTokensCount": 50,
+                                        "totalTokensCount": 150
+                                    }
+                                }
+                            },
+                            {
+                                "genInfo": {
+                                    "stats": {
+                                        "promptTokensCount": 3334,
+                                        "predictedTokensCount": 128,
+                                        "totalTokensCount": 3462
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        "createdAt": 1709251200
+    }
+    
+    import json as json_mod
+    with patch('lmstudio_tokens.open', new_callable=mock_open,
+               read_data=json_mod.dumps(json_data)) as mock_file:
+        
+        file_path = str(test_dir / 'test.json')
+        result = lmstudio_tokens.extract_from_json(file_path)
+
+        # Should sum all steps
+        assert result['input_tokens'] == 3434   # 100 + 3334
+        assert result['output_tokens'] == 178    # 50 + 128
+        assert result['reasoning_tokens'] == 0
+        assert result['cache_read_tokens'] == 0
+
+
+def test_extract_token_type_no_geninfo():
+    """Test token type extraction returns zeros when no genInfo.stats present."""
+    
+    tmpdir = tempfile.mkdtemp()
+    test_dir = Path(tmpdir) / '.lmstudio' / 'conversations'
+    os.makedirs(test_dir)
+    
+    # Old-style JSON without nested genInfo structure
+    json_data = {
+        "tokenCount": 100,
+        "messages": [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi"}
+        ],
+        "createdAt": 1709251200
+    }
+    
+    import json as json_mod
+    with patch('lmstudio_tokens.open', new_callable=mock_open,
+               read_data=json_mod.dumps(json_data)) as mock_file:
+        
+        file_path = str(test_dir / 'test.json')
+        result = lmstudio_tokens.extract_from_json(file_path)
+
+        assert result['input_tokens'] == 0
+        assert result['output_tokens'] == 0
+        assert result['reasoning_tokens'] == 0
+        assert result['cache_read_tokens'] == 0
+
+
 def test_database_module_imports():
     """Verify database module can be imported."""
     

@@ -75,6 +75,30 @@ def extract_from_json(file_path):
         except (ValueError, OSError):
             user_last_message_at = None
 
+    # Extract token type breakdowns from nested genInfo.stats
+    input_tokens = 0
+    output_tokens = 0
+    
+    def _collect_geninfo_stats(obj):
+        """Recursively collect all genInfo.stats dicts from the message tree."""
+        stats_list = []
+        if isinstance(obj, dict):
+            gi = obj.get('genInfo', {})
+            stats = gi.get('stats', {})
+            if stats and isinstance(stats, dict) and 'promptTokensCount' in stats:
+                stats_list.append(stats)
+            for v in obj.values():
+                stats_list.extend(_collect_geninfo_stats(v))
+        elif isinstance(obj, list):
+            for item in obj:
+                stats_list.extend(_collect_geninfo_stats(item))
+        return stats_list
+    
+    all_stats = _collect_geninfo_stats(messages_list)
+    for stats in all_stats:
+        input_tokens += int(stats.get('promptTokensCount', 0) or 0)
+        output_tokens += int(stats.get('predictedTokensCount', 0) or 0)
+
     return {
         'filename': Path(file_path).name,
         'token_count': total_tokens,
@@ -82,6 +106,10 @@ def extract_from_json(file_path):
         'model': model_name,
         'created_at': created_at,
         'user_last_message_at': user_last_message_at,
+        'input_tokens': input_tokens,
+        'output_tokens': output_tokens,
+        'reasoning_tokens': 0,
+        'cache_read_tokens': 0,
     }
 
 
