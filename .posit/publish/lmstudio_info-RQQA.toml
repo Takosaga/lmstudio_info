@@ -16,6 +16,7 @@ files = [
     "/data_loader.py",
     "/opencode_db.py",
     "/main.py",
+    "/assets",
 ]
 validate = true
 product_type = "connect_cloud"

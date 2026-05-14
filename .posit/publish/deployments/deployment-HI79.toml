@@ -10,12 +10,13 @@ id = "019e2768-343e-4515-e93e-29553a973f30"
 dashboard_url = "https://connect.posit.cloud/takosaga/content/019e2768-343e-4515-e93e-29553a973f30"
 direct_url = "https://019e2768-343e-4515-e93e-29553a973f30.share.connect.posit.cloud"
 logs_url = "https://connect.posit.cloud/takosaga/content/019e2768-343e-4515-e93e-29553a973f30/history"
-deployed_at = "2026-05-14T16:53:28.967Z"
-bundle_id = "019e2768-3440-66b9-7e9d-fefc5a078b0f"
+deployed_at = "2026-05-14T17:04:01.249Z"
+bundle_id = "019e2771-c7c3-b8e5-3064-5bf390e90051"
 files = [
     ".posit/publish/deployments/deployment-HI79.toml",
     ".posit/publish/lmstudio_info-RQQA.toml",
     "app.py",
+    "assets/styles.css",
     "data/lmstudio_usage.db",
     "data_loader.py",
     "lmstudio_db.py",
@@ -65,15 +66,11 @@ files = [
     "/data_loader.py",
     "/opencode_db.py",
     "/main.py",
+    "/assets",
 ]
 validate = true
 product_type = "connect_cloud"
 
 [configuration.python]
 version = "3.12"
-
-[deployment_error]
-code = "deployFailed"
-message = "Runtime error: Unable to start the app due to a runtime error. Please check the logs for more information."
-operation = "publish"
 
