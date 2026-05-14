@@ -96,7 +96,7 @@ app_ui = ui.page_sidebar(
                 "current_year": "Current Year",
                 "all": "All Time",
             },
-            selected="current_year",
+            selected="30",
             inline=True,
         ),
         open="desktop",
@@ -111,14 +111,14 @@ app_ui = ui.page_sidebar(
                 class_="text-center",
             ),
         ),
-        ui.column(
-            4,
-            ui.card(
-                ui.card_header("Average Monthly Tokens"),
-                ui.output_text_verbatim("avg_monthly"),
-                class_="text-center",
+            ui.column(
+                4,
+                ui.card(
+                    ui.output_text_verbatim("avg_header"),
+                    ui.output_text_verbatim("avg_value"),
+                    class_="text-center",
+                ),
             ),
-        ),
         ui.column(
             4,
             ui.card(
@@ -184,15 +184,25 @@ def server(input, output, session):
 
     @output
     @render.text
-    def avg_monthly():
+    def avg_header():
+        return "Average Daily Tokens" if input.time_period() == "Daily" else "Average Monthly Tokens"
+
+    @output
+    @render.text
+    def avg_value():
         data = filtered_data()
         if data is None or data.empty:
             return "No data available."
-        data["_month"] = pd.to_datetime(data["created_at"]).dt.to_period("M")
-        months = data["_month"].nunique()
-        if months == 0:
+        dt = pd.to_datetime(data["created_at"])
+        if input.time_period() == "Daily":
+            data["_day"] = dt.dt.date
+            periods = data["_day"].nunique()
+        else:
+            data["_month"] = dt.dt.to_period("M")
+            periods = data["_month"].nunique()
+        if periods == 0:
             return "No data available."
-        avg = int(data["token_count"].sum() / months)
+        avg = int(data["token_count"].sum() / periods)
         return f"{avg:,}"
 
     @output
@@ -244,7 +254,7 @@ def server(input, output, session):
             agg_melted = agg.melt(id_vars=['_time'], value_vars=token_cols,
                                    var_name='token_type', value_name='token_count')
             agg_melted['_time_label'] = agg_melted['_time'].apply(
-                lambda x: x.strftime("%b %Y") if hasattr(x, 'strftime') else str(x)
+                lambda x: x.strftime("%m/%d") if (hasattr(x, 'strftime') and gran == "Daily") else x.strftime("%b %Y") if hasattr(x, 'strftime') else str(x)
             )
             # Format token type names for display
             agg_melted['token_type'] = agg_melted['token_type'].map({
@@ -398,6 +408,28 @@ def server(input, output, session):
             ui.update_select("model_filter", choices=choices, selected="__all__")
         elif current:
             ui.update_select("model_filter", choices=choices, selected=current)
+
+    # Update time_range choices based on time_period selection
+    @reactive.effect
+    def update_time_range_choices():
+        if input.time_period() == "Daily":
+            ui.update_radio_buttons(
+                "time_range",
+                choices={"7": "7 days", "30": "30 days", "90": "90 days"},
+                selected="30",
+            )
+        else:
+            ui.update_radio_buttons(
+                "time_range",
+                choices={
+                    "7": "7 days",
+                    "30": "30 days",
+                    "90": "90 days",
+                    "current_year": "Current Year",
+                    "all": "All Time",
+                },
+                selected="current_year",
+            )
 
 app = App(app_ui, server)
 
