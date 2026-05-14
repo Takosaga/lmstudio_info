@@ -134,7 +134,7 @@ app_ui = ui.page_sidebar(
         ui.card_header("Token Usage Over Time"),
         output_widget("usage_chart"),
     ),
-    ui.include_css("assets/styles.css"),
+    ui.include_css(str(Path(__file__).parent / "assets" / "styles.css")),
     title="LMStudio Token Usage",
     fillable=True,
 )

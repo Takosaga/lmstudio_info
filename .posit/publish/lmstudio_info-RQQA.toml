@@ -8,10 +8,14 @@ title = "lmstudio_info"
 files = [
     "/app.py",
     "/requirements.txt",
-    "/.posit/publish/lmstudio_info-1NCL.toml",
-    "/.posit/publish/deployments/deployment-4ETP.toml",
-    "/data/lmstudio_usage.db",
+    "/.posit/publish/lmstudio_info-RQQA.toml",
+    "/.posit/publish/deployments/deployment-HI79.toml",
     "/data",
+    "/lmstudio_db.py",
+    "/lmstudio_tokens.py",
+    "/data_loader.py",
+    "/opencode_db.py",
+    "/main.py",
 ]
 validate = true
 product_type = "connect_cloud"
