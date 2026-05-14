@@ -14,21 +14,29 @@ _DB_PATH = Path(__file__).parent / "data" / "lmstudio_usage.db"
 # Load data from all sources at startup (module-level)
 def _load_all_sources():
     """Scan LMStudio conversations and sync OpenCode tokens, then load unified data."""
-    # 1. Scan and upsert LMStudio conversations
-    from lmstudio_tokens import scan_conversations as ls_scan, load_conversations_from_files as ls_load
-    from lmstudio_db import init_db, upsert_conversation
+    import os
+    
+    # 1. Scan and upsert LMStudio conversations (only if conversations exist)
+    try:
+        from lmstudio_tokens import scan_conversations as ls_scan, load_conversations_from_files as ls_load
+        from lmstudio_db import init_db, upsert_conversation
 
-    json_files = ls_scan()
-    if json_files:
-        conversations = ls_load(json_files)
-        init_db(str(_DB_PATH))
-        for conv in conversations:
-            conv.setdefault('source', 'lmstudio')
-            upsert_conversation(str(_DB_PATH), conv)
+        json_files = ls_scan()
+        if json_files:
+            conversations = ls_load(json_files)
+            init_db(str(_DB_PATH))
+            for conv in conversations:
+                conv.setdefault('source', 'lmstudio')
+                upsert_conversation(str(_DB_PATH), conv)
+    except Exception:
+        pass  # Skip LMStudio scanning if paths don't exist
 
-    # 2. Sync OpenCode messages from opencode.db (NEW — replaces opencode_tokens)
-    import opencode_db
-    opencode_db.sync_opencode_tokens()
+    # 2. Sync OpenCode messages from opencode.db (only if opencode.db exists)
+    try:
+        import opencode_db
+        opencode_db.sync_opencode_tokens()
+    except Exception:
+        pass  # Skip OpenCode sync if path doesn't exist
 
     # 3. Load unified data from DB
     from data_loader import load_unified_data
