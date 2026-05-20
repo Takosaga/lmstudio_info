@@ -139,6 +139,7 @@ def server(input, output, session):
         """Filter data based on selected time range and source."""
         if df is None:
             return None
+        total_models_count = len(df["model"].dropna().unique())
         data = df.copy()
 
         # Source filter
@@ -146,9 +147,9 @@ def server(input, output, session):
         if src and src != "all":
             data = data[data["source"] == src]
 
-        # Model filter — only apply when user has made a selection
+        # Model filter — skip when all models are pre-selected (downstream applies top-5)
         models = input.model_filter()
-        if models:
+        if models and len(models) < total_models_count:
             data = data[data["model"].isin(models)]
 
         if data.empty:
@@ -236,6 +237,15 @@ def server(input, output, session):
 
         # selected_models used below for dynamic displayed_models calculation
         selected_models = input.model_filter()
+        total_models_count = len(df["model"].dropna().unique()) if df is not None else 0
+        if not selected_models or len(selected_models) >= total_models_count:
+            top_5_models = (
+                agg_top5.groupby("model")["token_count"]
+                .sum()
+                .nlargest(5)
+                .index.tolist()
+            )
+            agg_top5 = agg_top5[agg_top5["model"].isin(top_5_models)].copy()
 
         gran = input.time_period()
         if gran == "Monthly":
