@@ -49,6 +49,9 @@ def _load_all_sources():
 
 df = _load_all_sources()
 
+# Capture all models from loaded data for dropdown options
+_all_models = list(df["model"].dropna().unique()) if df is not None else []
+
 # --- UI ---
 app_ui = ui.page_sidebar(
     ui.sidebar(
@@ -60,9 +63,10 @@ app_ui = ui.page_sidebar(
         ),
         ui.input_select(
             "model_filter",
-            "Model",
-            choices=_model_choices,
-            selected="__all__",
+            "Models",
+            choices={m: m for m in sorted(_all_models)},
+            selected=_all_models if _all_models else None,
+            multiple=True,
         ),
         ui.input_radio_buttons(
             "source_filter",
@@ -225,10 +229,10 @@ def server(input, output, session):
             return None
         agg_top5 = data.copy()
 
-        # Model filter (only relevant when breakdown_by == "model")
-        model = input.model_filter()
+        # Model filter (multi-select, only relevant when breakdown_by == "model")
+        selected_models = input.model_filter()
         if input.breakdown_by() != "token_type":
-            if not model or model == "__all__":
+            if not selected_models:
                 top_5_models = (
                     agg_top5.groupby("model")["token_count"]
                     .sum()
@@ -236,8 +240,8 @@ def server(input, output, session):
                     .index.tolist()
                 )
                 agg_top5 = agg_top5[agg_top5["model"].isin(top_5_models)].copy()
-            elif model:
-                agg_top5 = agg_top5[agg_top5["model"] == model].copy()
+            elif selected_models:
+                agg_top5 = agg_top5[agg_top5["model"].isin(selected_models)].copy()
 
         gran = input.time_period()
         if gran == "Monthly":
@@ -308,7 +312,7 @@ def server(input, output, session):
                 hovertemplate="<b>%{customdata[0]}</b><br>Tokens: %{customdata[1]:,}<br>Period share: %{customdata[2]}<extra></extra>",
                 textposition="inside",
             )
-            legend_title = "Top 5 Token Types" if not model else "Token Type"
+            legend_title = "Top 5 Token Types"
         else:
             # === MODEL-BASED CHART LOGIC (unchanged from original) ===
             agg = agg_top5.groupby(["_time", "model"])["token_count"].sum().reset_index()
@@ -322,12 +326,10 @@ def server(input, output, session):
                 agg["_time_label"] = agg["_time"].astype(str)
 
             # Determine which models are displayed
-            if not model or model == "__all__":
+            if not selected_models:
                 displayed_models = list(agg.groupby("model")["token_count"].sum().nlargest(5).index)
-            elif model:
-                displayed_models = [model]
-            else:
-                displayed_models = list(agg["model"].unique())
+            elif selected_models:
+                displayed_models = [m for m in agg["model"].unique() if m in selected_models]
 
             # Order models consistently (largest first)
             model_order = {m: i for i, m in enumerate(displayed_models)}
@@ -368,7 +370,7 @@ def server(input, output, session):
                 textposition="inside",
             )
             # Dynamic legend title
-            legend_title = "Top 5 Models" if not model else "Model"
+            legend_title = "Top 5 Models"
 
         fig.update_layout(
             xaxis_title="Time Period",
@@ -392,21 +394,6 @@ def server(input, output, session):
         )
         fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="LightGray")
         return fig
-
-    # Update model filter options reactively (only if data changes after startup)
-    @reactive.effect
-    def update_model_options():
-        if df is None:
-            return
-        models = sorted(df["model"].dropna().unique().tolist())
-        choices = {"__all__": "Top 5 Models"}
-        for m in models:
-            choices[m] = m
-        current = input.model_filter()
-        if current and current not in choices:
-            ui.update_select("model_filter", choices=choices, selected="__all__")
-        elif current:
-            ui.update_select("model_filter", choices=choices, selected=current)
 
     # Update time_range choices based on time_period selection
     @reactive.effect
