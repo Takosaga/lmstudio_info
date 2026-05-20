@@ -147,9 +147,9 @@ def server(input, output, session):
         if src and src != "all":
             data = data[data["source"] == src]
 
-        # Model filter — skip when all models are pre-selected (downstream applies top-5)
+        # Model filter — only apply when breakdown is by model (not token type)
         models = input.model_filter()
-        if models and len(models) < total_models_count:
+        if input.breakdown_by() != "token_type" and models and len(models) < total_models_count:
             data = data[data["model"].isin(models)]
 
         if data.empty:
