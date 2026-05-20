@@ -146,6 +146,11 @@ def server(input, output, session):
         if src and src != "all":
             data = data[data["source"] == src]
 
+        # Model filter — only apply when user has made a selection
+        models = input.model_filter()
+        if models:
+            data = data[data["model"].isin(models)]
+
         if data.empty:
             return data
 
@@ -229,19 +234,8 @@ def server(input, output, session):
             return None
         agg_top5 = data.copy()
 
-        # Model filter (multi-select, only relevant when breakdown_by == "model")
+        # selected_models used below for dynamic displayed_models calculation
         selected_models = input.model_filter()
-        if input.breakdown_by() != "token_type":
-            if not selected_models:
-                top_5_models = (
-                    agg_top5.groupby("model")["token_count"]
-                    .sum()
-                    .nlargest(5)
-                    .index.tolist()
-                )
-                agg_top5 = agg_top5[agg_top5["model"].isin(top_5_models)].copy()
-            elif selected_models:
-                agg_top5 = agg_top5[agg_top5["model"].isin(selected_models)].copy()
 
         gran = input.time_period()
         if gran == "Monthly":
@@ -325,10 +319,10 @@ def server(input, output, session):
             else:
                 agg["_time_label"] = agg["_time"].astype(str)
 
-            # Determine which models are displayed
+            # Determine which models are displayed from filtered data
             if not selected_models:
                 displayed_models = list(agg.groupby("model")["token_count"].sum().nlargest(5).index)
-            elif selected_models:
+            else:
                 displayed_models = [m for m in agg["model"].unique() if m in selected_models]
 
             # Order models consistently (largest first)
@@ -370,7 +364,7 @@ def server(input, output, session):
                 textposition="inside",
             )
             # Dynamic legend title
-            legend_title = "Top 5 Models"
+            legend_title = f"Top {len(displayed_models)} Models" if len(displayed_models) != 5 else "Top 5 Models"
 
         fig.update_layout(
             xaxis_title="Time Period",
