@@ -150,7 +150,7 @@ def server(input, output, session):
 
         # Model filter — only apply when breakdown is by model (not token type)
         models = input.model_filter()
-        if input.breakdown_by() != "token_type" and models and len(models) < total_models_count:
+        if input.breakdown_by() != "token_type" and len(models) > 0 and len(models) < total_models_count:
             data = data[data["model"].isin(models)]
 
         if data.empty:
@@ -236,7 +236,6 @@ def server(input, output, session):
             return None
         agg_top5 = data.copy()
 
-        # selected_models used below for dynamic displayed_models calculation
         selected_models = input.model_filter()
         total_models_count = len(df["model"].dropna().unique()) if df is not None else 0
         if not selected_models or len(selected_models) >= total_models_count:
