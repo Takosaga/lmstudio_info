@@ -135,7 +135,7 @@ app_ui = ui.page_sidebar(
         output_widget("usage_chart"),
     ),
     ui.include_css(str(Path(__file__).parent / "assets" / "styles.css")),
-    title="LMStudio Token Usage",
+    title="Local Token Usage",
     fillable=True,
 )
 

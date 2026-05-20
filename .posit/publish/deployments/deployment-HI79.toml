@@ -2,7 +2,7 @@
 "$schema" = "https://cdn.posit.co/publisher/schemas/posit-publishing-record-schema-v3.json"
 server_type = "connect_cloud"
 server_url = "https://connect.posit.cloud"
-client_version = "2.5.7"
+client_version = "2.5.9"
 created_at = "2026-05-14T16:52:58.948Z"
 type = "python-shiny"
 configuration_name = "lmstudio_info-RQQA"
@@ -10,8 +10,8 @@ id = "019e2768-343e-4515-e93e-29553a973f30"
 dashboard_url = "https://connect.posit.cloud/takosaga/content/019e2768-343e-4515-e93e-29553a973f30"
 direct_url = "https://019e2768-343e-4515-e93e-29553a973f30.share.connect.posit.cloud"
 logs_url = "https://connect.posit.cloud/takosaga/content/019e2768-343e-4515-e93e-29553a973f30/history"
-deployed_at = "2026-05-14T18:57:33.594Z"
-bundle_id = "019e27d9-b4f6-9923-56a9-4021ea1f742d"
+deployed_at = "2026-05-17T17:07:01.214Z"
+bundle_id = "019e36e7-92d4-f604-15bb-4eecfdff9ae5"
 files = [
     ".posit/publish/deployments/deployment-HI79.toml",
     ".posit/publish/lmstudio_info-RQQA.toml",
