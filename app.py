@@ -90,13 +90,11 @@ app_ui = ui.page_sidebar(
             "time_range",
             "Time Range",
             choices={
-                "7": "7 days",
-                "30": "30 days",
                 "90": "90 days",
                 "current_year": "Current Year",
                 "all": "All Time",
             },
-            selected="30",
+            selected="current_year",
             inline=True,
         ),
         open="desktop",
@@ -106,7 +104,7 @@ app_ui = ui.page_sidebar(
         ui.column(
             4,
             ui.card(
-                ui.card_header("Total Tokens"),
+                ui.output_text_verbatim("total_tokens_header"),
                 ui.output_text_verbatim("total_tokens"),
                 class_="text-center",
             ),
@@ -122,7 +120,7 @@ app_ui = ui.page_sidebar(
         ui.column(
             4,
             ui.card(
-                ui.card_header("Top Model"),
+                ui.output_text_verbatim("top_model_header"),
                 ui.output_text_verbatim("top_model"),
                 class_="text-center",
             ),
@@ -175,6 +173,11 @@ def server(input, output, session):
 
     @output
     @render.text
+    def total_tokens_header():
+        return "Total Tokens"
+
+    @output
+    @render.text
     def total_tokens():
         data = filtered_data()
         if data is None or data.empty:
@@ -204,6 +207,11 @@ def server(input, output, session):
             return "No data available."
         avg = int(data["token_count"].sum() / periods)
         return f"{avg:,}"
+
+    @output
+    @render.text
+    def top_model_header():
+        return "Top Model"
 
     @output
     @render.text
@@ -422,8 +430,6 @@ def server(input, output, session):
             ui.update_radio_buttons(
                 "time_range",
                 choices={
-                    "7": "7 days",
-                    "30": "30 days",
                     "90": "90 days",
                     "current_year": "Current Year",
                     "all": "All Time",
