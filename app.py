@@ -49,14 +49,6 @@ def _load_all_sources():
 
 df = _load_all_sources()
 
-# Build model choices at startup to avoid reactive dropdown flash
-if df is not None and not df.empty:
-    _model_choices = {"__all__": "Top 5 Models"}
-    for m in sorted(df["model"].dropna().unique().tolist()):
-        _model_choices[m] = m
-else:
-    _model_choices = {"__all__": "Top 5 Models"}
-
 # --- UI ---
 app_ui = ui.page_sidebar(
     ui.sidebar(
