@@ -49,9 +49,6 @@ def _load_all_sources():
 
 df = _load_all_sources()
 
-# Capture all models from loaded data for dropdown options
-_all_models = list(df["model"].dropna().unique()) if df is not None else []
-
 # --- UI ---
 app_ui = ui.page_sidebar(
     ui.sidebar(
@@ -85,14 +82,6 @@ app_ui = ui.page_sidebar(
             },
             selected="current_year",
             inline=True,
-        ),
-        # Model filter dropdown — after radio buttons
-        ui.input_select(
-            "model_filter",
-            "Models",
-            choices={m: m for m in sorted(_all_models)},
-            selected=_all_models if _all_models else None,
-            multiple=True,
         ),
         open="desktop",
     ),
@@ -140,7 +129,6 @@ def server(input, output, session):
         """Filter data based on selected time range and source."""
         if df is None:
             return None
-        total_models_count = len(df["model"].dropna().unique())
         data = df.copy()
 
         # Source filter
@@ -148,10 +136,7 @@ def server(input, output, session):
         if src and src != "all":
             data = data[data["source"] == src]
 
-        # Model filter — only apply when breakdown is by model (not token type)
-        models = input.model_filter()
-        if input.breakdown_by() != "token_type" and len(models) > 0 and len(models) < total_models_count:
-            data = data[data["model"].isin(models)]
+
 
         if data.empty:
             return data
@@ -236,16 +221,13 @@ def server(input, output, session):
             return None
         agg_top5 = data.copy()
 
-        selected_models = input.model_filter()
-        total_models_count = len(df["model"].dropna().unique()) if df is not None else 0
-        if not selected_models or len(selected_models) >= total_models_count:
-            top_5_models = (
-                agg_top5.groupby("model")["token_count"]
-                .sum()
-                .nlargest(5)
-                .index.tolist()
-            )
-            agg_top5 = agg_top5[agg_top5["model"].isin(top_5_models)].copy()
+        top_5_models = (
+            agg_top5.groupby("model")["token_count"]
+            .sum()
+            .nlargest(5)
+            .index.tolist()
+        )
+        agg_top5 = agg_top5[agg_top5["model"].isin(top_5_models)].copy()
 
         gran = input.time_period()
         if gran == "Monthly":
@@ -329,11 +311,8 @@ def server(input, output, session):
             else:
                 agg["_time_label"] = agg["_time"].astype(str)
 
-            # Determine which models are displayed from filtered data
-            if not selected_models:
-                displayed_models = list(agg.groupby("model")["token_count"].sum().nlargest(5).index)
-            else:
-                displayed_models = [m for m in agg["model"].unique() if m in selected_models]
+            # Determine top 5 models from filtered data
+            displayed_models = list(agg.groupby("model")["token_count"].sum().nlargest(5).index)
 
             # Order models consistently (largest first)
             model_order = {m: i for i, m in enumerate(displayed_models)}
