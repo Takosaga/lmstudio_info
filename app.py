@@ -61,13 +61,6 @@ app_ui = ui.page_sidebar(
             choices=["Monthly", "Daily"],
             selected="Monthly",
         ),
-        ui.input_select(
-            "model_filter",
-            "Models",
-            choices={m: m for m in sorted(_all_models)},
-            selected=_all_models if _all_models else None,
-            multiple=True,
-        ),
         ui.input_radio_buttons(
             "source_filter",
             "Source",
@@ -92,6 +85,14 @@ app_ui = ui.page_sidebar(
             },
             selected="current_year",
             inline=True,
+        ),
+        # Model filter dropdown — after radio buttons
+        ui.input_select(
+            "model_filter",
+            "Models",
+            choices={m: m for m in sorted(_all_models)},
+            selected=_all_models if _all_models else None,
+            multiple=True,
         ),
         open="desktop",
     ),
