@@ -368,6 +368,79 @@ def test_extract_token_type_no_geninfo():
         assert result['cache_read_tokens'] == 0
 
 
+def test_extract_tool_call_count():
+    """Test extraction of tool call count from toolStatus steps."""
+    
+    tmpdir = tempfile.mkdtemp()
+    test_dir = Path(tmpdir) / '.lmstudio' / 'conversations'
+    os.makedirs(test_dir)
+    
+    json_data = {
+        "tokenCount": 2065,
+        "messages": [
+            {"role": "user", "content": "Hello"},
+            {
+                "role": "assistant",
+                "versions": [
+                    {
+                        "steps": [
+                            {"genInfo": {"stats": {"promptTokensCount": 100, "predictedTokensCount": 50}}},
+                            {"type": "toolStatus", "callId": "call_1", "statusState": {"status": {"type": "toolCallSucceeded"}}},
+                            {"type": "toolStatus", "callId": "call_2", "statusState": {"status": {"type": "toolCallSucceeded"}}},
+                        ]
+                    }
+                ]
+            },
+            {
+                "role": "assistant",
+                "versions": [
+                    {
+                        "steps": [
+                            {"type": "toolStatus", "callId": "call_3", "statusState": {"status": {"type": "toolCallSucceeded"}}},
+                        ]
+                    }
+                ]
+            }
+        ],
+        "createdAt": 1709251200
+    }
+    
+    import json as json_mod
+    with patch('lmstudio_tokens.open', new_callable=mock_open,
+               read_data=json_mod.dumps(json_data)) as mock_file:
+        
+        file_path = str(test_dir / 'test.json')
+        result = lmstudio_tokens.extract_from_json(file_path)
+
+        assert result['tool_call_count'] == 3
+
+
+def test_extract_tool_call_count_zero():
+    """Test tool call count is 0 when no toolStatus steps present."""
+    
+    tmpdir = tempfile.mkdtemp()
+    test_dir = Path(tmpdir) / '.lmstudio' / 'conversations'
+    os.makedirs(test_dir)
+    
+    json_data = {
+        "tokenCount": 100,
+        "messages": [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi"}
+        ],
+        "createdAt": 1709251200
+    }
+    
+    import json as json_mod
+    with patch('lmstudio_tokens.open', new_callable=mock_open,
+               read_data=json_mod.dumps(json_data)) as mock_file:
+        
+        file_path = str(test_dir / 'test.json')
+        result = lmstudio_tokens.extract_from_json(file_path)
+
+        assert result['tool_call_count'] == 0
+
+
 def test_database_module_imports():
     """Verify database module can be imported."""
     

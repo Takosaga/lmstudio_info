@@ -99,6 +99,21 @@ def extract_from_json(file_path):
         input_tokens += int(stats.get('promptTokensCount', 0) or 0)
         output_tokens += int(stats.get('predictedTokensCount', 0) or 0)
 
+    def _count_tool_calls(obj):
+        """Recursively count toolStatus steps in a message tree."""
+        count = 0
+        if isinstance(obj, dict):
+            if obj.get('type') == 'toolStatus':
+                count += 1
+            for v in obj.values():
+                count += _count_tool_calls(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                count += _count_tool_calls(item)
+        return count
+
+    tool_call_count = _count_tool_calls(messages_list)
+
     return {
         'filename': Path(file_path).name,
         'token_count': total_tokens,
@@ -110,6 +125,7 @@ def extract_from_json(file_path):
         'output_tokens': output_tokens,
         'reasoning_tokens': 0,
         'cache_read_tokens': 0,
+        'tool_call_count': tool_call_count,
     }
 
 
