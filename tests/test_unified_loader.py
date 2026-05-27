@@ -70,3 +70,27 @@ def test_load_usage_data_still_works():
         assert 'model' in df.columns
     finally:
         import os; os.unlink(db)
+
+
+def test_load_unified_data_includes_tool_call_count():
+    """Verify load_unified_data returns tool_call_count column."""
+    import sqlite3
+    
+    db = tempfile.mktemp(suffix='.db')
+    lmstudio_db.init_db(db)
+    
+    conn = sqlite3.connect(db)
+    c = conn.cursor()
+    c.execute(
+        "INSERT INTO conversations (filename, token_count, message_count, model, created_at, source, tool_call_count) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ("test.json", 100, 2, "test-model", "2024-01-01", "lmstudio", 5),
+    )
+    conn.commit()
+    conn.close()
+    
+    df = data_loader.load_unified_data(db)
+    
+    assert 'tool_call_count' in df.columns
+    assert df['tool_call_count'].iloc[0] == 5
+    
+    import os; os.unlink(db)
