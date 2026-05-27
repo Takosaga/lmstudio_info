@@ -1,4 +1,5 @@
 """Tests for LMStudio conversation data extraction."""
+import json
 import os
 import sys
 import tempfile
@@ -269,9 +270,8 @@ def test_extract_token_type_breakdown():
         "createdAt": 1709251200
     }
     
-    import json as json_mod
     with patch('lmstudio_tokens.open', new_callable=mock_open,
-               read_data=json_mod.dumps(json_data)) as mock_file:
+               read_data=json.dumps(json_data)) as mock_file:
         
         file_path = str(test_dir / 'test.json')
         result = lmstudio_tokens.extract_from_json(file_path)
@@ -324,9 +324,8 @@ def test_extract_token_type_multiple_steps():
         "createdAt": 1709251200
     }
     
-    import json as json_mod
     with patch('lmstudio_tokens.open', new_callable=mock_open,
-               read_data=json_mod.dumps(json_data)) as mock_file:
+               read_data=json.dumps(json_data)) as mock_file:
         
         file_path = str(test_dir / 'test.json')
         result = lmstudio_tokens.extract_from_json(file_path)
@@ -355,9 +354,8 @@ def test_extract_token_type_no_geninfo():
         "createdAt": 1709251200
     }
     
-    import json as json_mod
     with patch('lmstudio_tokens.open', new_callable=mock_open,
-               read_data=json_mod.dumps(json_data)) as mock_file:
+               read_data=json.dumps(json_data)) as mock_file:
         
         file_path = str(test_dir / 'test.json')
         result = lmstudio_tokens.extract_from_json(file_path)
@@ -405,9 +403,8 @@ def test_extract_tool_call_count():
         "createdAt": 1709251200
     }
     
-    import json as json_mod
     with patch('lmstudio_tokens.open', new_callable=mock_open,
-               read_data=json_mod.dumps(json_data)) as mock_file:
+               read_data=json.dumps(json_data)) as mock_file:
         
         file_path = str(test_dir / 'test.json')
         result = lmstudio_tokens.extract_from_json(file_path)
@@ -431,9 +428,8 @@ def test_extract_tool_call_count_zero():
         "createdAt": 1709251200
     }
     
-    import json as json_mod
     with patch('lmstudio_tokens.open', new_callable=mock_open,
-               read_data=json_mod.dumps(json_data)) as mock_file:
+               read_data=json.dumps(json_data)) as mock_file:
         
         file_path = str(test_dir / 'test.json')
         result = lmstudio_tokens.extract_from_json(file_path)

@@ -101,6 +101,8 @@ def extract_from_json(file_path):
 
     def _count_tool_calls(obj):
         """Recursively count toolStatus steps in a message tree."""
+        if obj is None:
+            return 0
         count = 0
         if isinstance(obj, dict):
             if obj.get('type') == 'toolStatus':
