@@ -30,6 +30,30 @@ def _create_mock_opencode_db(tmpdir):
             data TEXT NOT NULL
         )
     """)
+    c.execute("""
+        CREATE TABLE part (
+            id TEXT PRIMARY KEY,
+            message_id TEXT NOT NULL,
+            "index" INTEGER NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+
+    # Add tool parts for msg_test_001 (2 tool calls)
+    c.execute(
+        "INSERT INTO part VALUES (?, ?, ?, ?)",
+        ("part_a", "msg_test_001", 0, json.dumps({"type": "tool", "callID": "ca1", "tool": "glob"})),
+    )
+    c.execute(
+        "INSERT INTO part VALUES (?, ?, ?, ?)",
+        ("part_b", "msg_test_001", 1, json.dumps({"type": "tool", "callID": "ca2", "tool": "read_file"})),
+    )
+
+    # Add tool parts for msg_test_004 (1 tool call)
+    c.execute(
+        "INSERT INTO part VALUES (?, ?, ?, ?)",
+        ("part_c", "msg_test_004", 0, json.dumps({"type": "tool", "callID": "ca3", "tool": "bash"})),
+    )
 
     # Assistant message with tokens
     c.execute(
@@ -162,6 +186,14 @@ def test_sync_opencode_tokens_basic():
     assert row[0] == "test-reasoning-model"
     assert row[1] == 100 + 200 + 50 + 10  # total_tokens
     assert row[2] == 50  # reasoning
+
+    # Check tool_call_count for msg_test_001 (2 tool calls)
+    c.execute("SELECT tool_call_count FROM conversations WHERE filename = 'msg_test_001'")
+    assert c.fetchone()[0] == 2
+
+    # Check tool_call_count for msg_test_004 (1 tool call)
+    c.execute("SELECT tool_call_count FROM conversations WHERE filename = 'msg_test_004'")
+    assert c.fetchone()[0] == 1
 
     conn.close()
 
