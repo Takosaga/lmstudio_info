@@ -202,7 +202,7 @@ def upsert_conversation(db_path, conversation_data):
             cursor.execute(
                 """
                     SELECT token_count, message_count, model, source,
-                           input_tokens, output_tokens, reasoning_tokens, cache_read_tokens
+                           input_tokens, output_tokens, reasoning_tokens, cache_read_tokens, tool_call_count
                     FROM conversations WHERE filename = ?
                 """,
                 (filename,)
@@ -215,19 +215,22 @@ def upsert_conversation(db_path, conversation_data):
             new_output_tokens = conversation_data.get('output_tokens', 0)
             new_reasoning_tokens = conversation_data.get('reasoning_tokens', 0)
             new_cache_read_tokens = conversation_data.get('cache_read_tokens', 0)
+            new_tool_call_count = conversation_data.get('tool_call_count', 0)
 
             existing_source = existing[3] if existing else None
             existing_input = existing[4] if existing else None
             existing_output = existing[5] if existing else None
             existing_reasoning = existing[6] if existing else None
             existing_cache = existing[7] if existing else None
+            existing_tool_call = existing[8] if existing else None
 
             if (existing and new_token_count == existing[0]
                     and new_message_count == existing[1]
                     and new_input_tokens == existing_input
                     and new_output_tokens == existing_output
                     and new_reasoning_tokens == existing_reasoning
-                    and new_cache_read_tokens == existing_cache):
+                    and new_cache_read_tokens == existing_cache
+                    and new_tool_call_count == existing_tool_call):
                 # No significant change, skip update
                 return False
             
