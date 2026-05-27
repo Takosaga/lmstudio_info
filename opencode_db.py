@@ -52,40 +52,12 @@ def _extract_tokens(data_json):
     return input_tok, output_tok, reasoning_tok, cache_read_tok
 
 
-def _count_tool_calls(opencode_db_path: str, message_id: str) -> int:
-    """Count tool-type parts for a given message.
-
-    Args:
-        opencode_db_path: Path to the opencode.db file.
-        message_id: The message ID to query parts for.
-
-    Returns:
-        Number of parts where json_extract(data, '$.type') = 'tool'.
-    """
-    try:
-        conn = sqlite3.connect(f"file:{opencode_db_path}?mode=ro", uri=True)
-        cursor = conn.cursor()
-        cursor.execute(
-            """
-            SELECT COUNT(*) FROM part
-            WHERE message_id = ?
-              AND json_extract(data, '$.type') = 'tool'
-            """,
-            (message_id,),
-        )
-        count = cursor.fetchone()[0]
-        conn.close()
-        return count
-    except sqlite3.Error:
-        return 0
-
-
-def _row_to_conversation(row, opencode_db_path: str | None = None):
+def _row_to_conversation(row, tool_call_counts: dict | None = None):
     """Convert an opencode.db message row to a conversation dict for upsert.
 
     Args:
         row: Tuple (id, time_created, data_text) from the SQL query.
-        opencode_db_path: Path to opencode.db for querying tool call counts.
+        tool_call_counts: Pre-computed {message_id: count} dict from batch query.
 
     Returns:
         Dict compatible with lmstudio_db.upsert_conversation(), or None if
@@ -93,7 +65,7 @@ def _row_to_conversation(row, opencode_db_path: str | None = None):
     """
     msg_id, time_created_ms, data_text = row
 
-    tool_call_count = _count_tool_calls(opencode_db_path, msg_id) if opencode_db_path else 0
+    tool_call_count = (tool_call_counts or {}).get(msg_id, 0) if msg_id else 0
 
     try:
         data_json = json.loads(data_text) if isinstance(data_text, str) else None
@@ -192,13 +164,26 @@ def sync_opencode_tokens(db_path: str | None = None, lmstudio_db_path: str | Non
     try:
         cursor.execute(query)
         rows = cursor.fetchall()
+
+        # Batch-count tool calls per message for efficiency
+        try:
+            cursor.execute("""
+                SELECT message_id, COUNT(*) FROM part
+                WHERE json_extract(data, '$.type') = 'tool'
+                GROUP BY message_id
+            """)
+            tool_call_counts = {row[0]: row[1] for row in cursor.fetchall()}
+        except sqlite3.OperationalError:
+            # part table doesn't exist (e.g. older opencode.db schema)
+            tool_call_counts = {}
+
     except sqlite3.OperationalError as e:
         logger.warning(f"Query failed on opencode.db: {e}")
         conn.close()
         return 0
 
     for row in rows:
-        conv = _row_to_conversation(row, db_path)
+        conv = _row_to_conversation(row, tool_call_counts)
         if conv is None:
             skipped += 1
             continue
