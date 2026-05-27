@@ -310,3 +310,104 @@ def test_row_to_conversation_handles_bad_json():
     row = ("msg_bad", 1764334250000, "not valid json{{{")
     result = opencode_db._row_to_conversation(row)
     assert result is None
+
+
+def _create_mock_opencode_db_with_parts(tmpdir):
+    """Create a minimal opencode.db with part table and test data.
+
+    Returns the path to the created database.
+    """
+    db_path = os.path.join(tmpdir, "opencode_test_parts.db")
+    conn = __import__("sqlite3").connect(db_path)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE message (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            time_created INTEGER NOT NULL,
+            time_updated INTEGER NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+    c.execute("""
+        CREATE TABLE part (
+            id TEXT PRIMARY KEY,
+            message_id TEXT NOT NULL,
+            "index" INTEGER NOT NULL,
+            data TEXT NOT NULL
+        )
+    """)
+
+    # Assistant message with 2 tool calls
+    c.execute(
+        "INSERT INTO message VALUES (?, ?, ?, ?, ?)",
+        (
+            "msg_tool_001",
+            "sess_abc",
+            1764334238483,
+            1764334240000,
+            json.dumps({
+                "role": "assistant",
+                "modelID": "test-model",
+                "tokens": {"input": 94, "output": 48, "reasoning": 0, "cache": {"read": 0}}
+            }),
+        ),
+    )
+    # Two tool parts linked to msg_tool_001
+    c.execute(
+        "INSERT INTO part VALUES (?, ?, ?, ?)",
+        ("part_001", "msg_tool_001", 0, json.dumps({"type": "tool", "callID": "call_1", "tool": "glob"})),
+    )
+    c.execute(
+        "INSERT INTO part VALUES (?, ?, ?, ?)",
+        ("part_002", "msg_tool_001", 1, json.dumps({"type": "tool", "callID": "call_2", "tool": "read_file"})),
+    )
+
+    # Assistant message with no tool calls
+    c.execute(
+        "INSERT INTO message VALUES (?, ?, ?, ?, ?)",
+        (
+            "msg_tool_002",
+            "sess_def",
+            1764335000000,
+            1764335100000,
+            json.dumps({
+                "role": "assistant",
+                "modelID": "test-model",
+                "tokens": {"input": 100, "output": 200, "reasoning": 0, "cache": {"read": 0}}
+            }),
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+    return db_path
+
+
+def test_sync_opencode_tokens_with_tool_calls():
+    """Test syncing assistant messages with tool call counts from part table."""
+    tmpdir = tempfile.mkdtemp()
+
+    opencode_db_path = _create_mock_opencode_db_with_parts(tmpdir)
+    lmstudio_db_path = os.path.join(tmpdir, "lmstudio_usage.db")
+    lmstudio_db.init_db(lmstudio_db_path)
+
+    synced = opencode_db.sync_opencode_tokens(
+        db_path=opencode_db_path,
+        lmstudio_db_path=lmstudio_db_path
+    )
+
+    assert synced == 2
+
+    conn = __import__("sqlite3").connect(lmstudio_db_path)
+    c = conn.cursor()
+
+    # msg_tool_001 should have 2 tool calls
+    c.execute("SELECT tool_call_count FROM conversations WHERE filename = 'msg_tool_001'")
+    assert c.fetchone()[0] == 2
+
+    # msg_tool_002 should have 0 tool calls
+    c.execute("SELECT tool_call_count FROM conversations WHERE filename = 'msg_tool_002'")
+    assert c.fetchone()[0] == 0
+
+    conn.close()

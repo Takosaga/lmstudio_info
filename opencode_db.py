@@ -52,17 +52,48 @@ def _extract_tokens(data_json):
     return input_tok, output_tok, reasoning_tok, cache_read_tok
 
 
-def _row_to_conversation(row):
+def _count_tool_calls(opencode_db_path: str, message_id: str) -> int:
+    """Count tool-type parts for a given message.
+
+    Args:
+        opencode_db_path: Path to the opencode.db file.
+        message_id: The message ID to query parts for.
+
+    Returns:
+        Number of parts where json_extract(data, '$.type') = 'tool'.
+    """
+    try:
+        conn = sqlite3.connect(f"file:{opencode_db_path}?mode=ro", uri=True)
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT COUNT(*) FROM part
+            WHERE message_id = ?
+              AND json_extract(data, '$.type') = 'tool'
+            """,
+            (message_id,),
+        )
+        count = cursor.fetchone()[0]
+        conn.close()
+        return count
+    except sqlite3.Error:
+        return 0
+
+
+def _row_to_conversation(row, opencode_db_path: str | None = None):
     """Convert an opencode.db message row to a conversation dict for upsert.
 
     Args:
         row: Tuple (id, time_created, data_text) from the SQL query.
+        opencode_db_path: Path to opencode.db for querying tool call counts.
 
     Returns:
         Dict compatible with lmstudio_db.upsert_conversation(), or None if
         the message should be skipped (no model, zero tokens).
     """
     msg_id, time_created_ms, data_text = row
+
+    tool_call_count = _count_tool_calls(opencode_db_path, msg_id) if opencode_db_path else 0
 
     try:
         data_json = json.loads(data_text) if isinstance(data_text, str) else None
@@ -104,6 +135,7 @@ def _row_to_conversation(row):
         "output_tokens": output_tok,
         "reasoning_tokens": reasoning_tok,
         "cache_read_tokens": cache_read_tok,
+        "tool_call_count": tool_call_count,
     }
 
 
@@ -166,7 +198,7 @@ def sync_opencode_tokens(db_path: str | None = None, lmstudio_db_path: str | Non
         return 0
 
     for row in rows:
-        conv = _row_to_conversation(row)
+        conv = _row_to_conversation(row, db_path)
         if conv is None:
             skipped += 1
             continue
