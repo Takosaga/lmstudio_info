@@ -88,26 +88,34 @@ app_ui = ui.page_sidebar(
     # KPI Cards - centered
     ui.row(
         ui.column(
-            4,
+            3,
             ui.card(
                 ui.output_text_verbatim("total_tokens_header"),
                 ui.output_text_verbatim("total_tokens"),
                 class_="text-center",
             ),
         ),
-            ui.column(
-                4,
-                ui.card(
-                    ui.output_text_verbatim("avg_header"),
-                    ui.output_text_verbatim("avg_value"),
-                    class_="text-center",
-                ),
-            ),
         ui.column(
-            4,
+            3,
+            ui.card(
+                ui.output_text_verbatim("avg_header"),
+                ui.output_text_verbatim("avg_value"),
+                class_="text-center",
+            ),
+        ),
+        ui.column(
+            3,
             ui.card(
                 ui.output_text_verbatim("top_model_header"),
                 ui.output_text_verbatim("top_model"),
+                class_="text-center",
+            ),
+        ),
+        ui.column(
+            3,
+            ui.card(
+                ui.output_text_verbatim("total_tool_calls_header"),
+                ui.output_text_verbatim("total_tool_calls"),
                 class_="text-center",
             ),
         ),
@@ -212,6 +220,20 @@ def server(input, output, session):
         top = model_usage.index[0]
         tokens = int(model_usage.iloc[0])
         return f"{top}\n{tokens:,} tokens"
+
+    @output
+    @render.text
+    def total_tool_calls_header():
+        return "Total Tool Calls"
+
+    @output
+    @render.text
+    def total_tool_calls():
+        data = filtered_data()
+        if data is None or data.empty:
+            return "No data available."
+        total = int(data["tool_call_count"].sum())
+        return f"{total:,}"
 
     @output
     @render_plotly()
