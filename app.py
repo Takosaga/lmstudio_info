@@ -339,7 +339,8 @@ def server(input, output, session):
                     [0.75, '#30a14e'],
                     [1, '#216e39']
                 ],
-                hovertemplate='<b>%{x}</b><br>Date: %{y}<br>Tokens: %{z:,}<extra></extra>',
+                customdata=cal_data['dates'],
+                hovertemplate='<b>%{customdata[0]}</b><br>Tokens: %{z:,}<extra></extra>',
             ))
 
             fig.update_layout(

@@ -255,6 +255,49 @@ def test_calendar_with_real_db():
     assert 'dates' in cal_data, "Dates matrix should be present"
 
 
+def test_usage_chart_calendar_hover():
+    """Test that the calendar chart passes dates via customdata for hover."""
+    from app import _build_calendar_data
+    import plotly.graph_objects as go
+
+    data = pd.DataFrame({
+        'model': ['gpt-4'],
+        'created_at': pd.to_datetime(['2025-01-01']),
+        'input_tokens': [100],
+        'output_tokens': [300],
+        'reasoning_tokens': [0],
+        'cache_read_tokens': [0],
+    })
+
+    cal_data = _build_calendar_data(data)
+    assert 'dates' in cal_data
+
+    # Verify that customdata is passed correctly to Plotly Heatmap
+    fig = go.Figure(go.Heatmap(
+        z=cal_data['z'],
+        x=cal_data['x'],
+        y=cal_data['y'],
+        colorscale=[
+            [0, '#ebedf0'],
+            [0.15, '#b6e2b4'],
+            [0.3, '#9be9a8'],
+            [0.5, '#40c463'],
+            [0.75, '#30a14e'],
+            [1, '#216e39']
+        ],
+        customdata=cal_data['dates'],
+        hovertemplate='<b>%{customdata[0]}</b><br>Tokens: %{z:,}<extra></extra>',
+    ))
+
+    assert fig.data[0].customdata is not None
+    custom = fig.data[0].customdata
+    # Plotly may return tuple or ndarray; check dimensions either way
+    if hasattr(custom, 'shape'):
+        assert custom.shape == (7, len(cal_data['x']))
+    else:
+        assert len(custom) == 7 and all(len(row) == len(cal_data['x']) for row in custom)
+
+
 def test_calendar_with_real_db():
     """Test calendar heatmap builds from actual database."""
     from app import _build_calendar_data
