@@ -108,24 +108,27 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
         col = days_since_start // 7
         date_strings[row][col] = d.strftime('%a, %b %-d, %Y')
 
-    # Build x-axis labels: month name on first week of each month, empty string otherwise
-    x_labels = []
+    # Build tickvals/ticktext for month labels on numeric x-axis.
+    # Using numeric column indices (0..N-1) avoids Plotly's category axis
+    # collapsing empty-string labels into a single visual column.
+    tickvals = []
+    ticktext = []
     current_month = None
     for w in range(max_col):
         week_start = first_day + pd.Timedelta(weeks=w)
         month_name = week_start.strftime('%b')
 
         if current_month is None or month_name != current_month:
-            x_labels.append(month_name)
+            tickvals.append(w)
+            ticktext.append(month_name)
             current_month = month_name
-        else:
-            x_labels.append('')
 
     return {
         'z': z,
-        'x': x_labels,
         'y': day_names,
         'date_strings': date_strings,
+        'tickvals': tickvals,
+        'ticktext': ticktext,
     }
 
 # --- UI ---
@@ -327,9 +330,15 @@ def server(input, output, session):
             if not cal_data['z']:
                 return None
 
+            n_cols = len(cal_data['z'][0])
+            cell_px = 15  # target cell size in pixels
+            margin_l, margin_r, margin_t, margin_b = 80, 30, 40, 60
+            width = n_cols * cell_px + margin_l + margin_r
+            height = 7 * cell_px + margin_t + margin_b
+
             fig = go.Figure(go.Heatmap(
                 z=cal_data['z'],
-                x=cal_data['x'],
+                x=list(range(n_cols)),  # numeric indices: 0, 1, 2, ... avoids category-axis collapse
                 y=cal_data['y'],
                 colorscale=[
                     [0, '#ebedf0'],
@@ -346,18 +355,24 @@ def server(input, output, session):
             fig.update_layout(
                 xaxis_title="",
                 yaxis_title="",
-                margin=dict(l=80, r=30, t=40, b=60),
+                margin=dict(l=margin_l, r=margin_r, t=margin_t, b=margin_b),
                 plot_bgcolor="white",
                 paper_bgcolor="white",
                 font=dict(size=11),
-                height=250,
-                xaxis=dict(
-                    tickangle=-15,
-                    side='top',
-                ),
+                width=width,
+                height=height,
             )
 
-            fig.update_xaxes(type='category')
+            fig.update_xaxes(
+                type='linear',
+                tickvals=cal_data['tickvals'],
+                ticktext=cal_data['ticktext'],
+                tickangle=-15,
+                side='top',
+                dtick=1,  # show grid lines at every column
+            )
+            # Force square cells: y-axis units match x-axis units in pixels
+            fig.update_yaxes(scaleanchor="x", scaleratio=1)
             return fig
 
         agg_top5 = data.copy()
