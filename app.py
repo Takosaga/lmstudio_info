@@ -513,9 +513,9 @@ def server(input, output, session):
         period = input.time_period()
 
         if period == "Calendar":
-            # Hide breakdown_by and time_range for calendar view
-            ui.update_radio_buttons("breakdown_by", choices={})
-            ui.update_radio_buttons("time_range", choices={})
+            # Calendar mode ignores breakdown_by and time_range;
+            # no update needed since those inputs only affect non-calendar charts.
+            pass
         elif period == "Daily":
             # Show all filters with Daily-appropriate time_range options
             ui.update_radio_buttons(
