@@ -241,8 +241,8 @@ app_ui = ui.page_sidebar(
         ui.input_radio_buttons(
             "time_period",
             "Time Period",
-            choices={"Monthly": "Monthly", "Daily": "Daily", "Calendar": "Calendar"},
-            selected="Calendar",
+            choices={"Monthly": "Monthly", "Daily": "Daily"},
+            selected="Monthly",
         ),
         ui.input_radio_buttons(
             "source_filter",
@@ -270,6 +270,11 @@ app_ui = ui.page_sidebar(
             inline=True,
         ),
         open="desktop",
+    ),
+    # Calendar Heatmap — always visible at top
+    ui.card(
+        ui.card_header("Token Usage Calendar"),
+        output_widget("calendar_chart"),
     ),
     # KPI Cards - centered
     ui.row(
