@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 from shiny import App, ui, render, reactive
 from shinywidgets import output_widget, render_plotly
 
@@ -92,10 +93,10 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
 # --- UI ---
 app_ui = ui.page_sidebar(
     ui.sidebar(
-        ui.input_select(
+        ui.input_radio_buttons(
             "time_period",
             "Time Period",
-            choices=["Monthly", "Daily"],
+            choices={"Monthly": "Monthly", "Daily": "Daily", "Calendar": "Calendar"},
             selected="Monthly",
         ),
         ui.input_radio_buttons(
@@ -281,6 +282,44 @@ def server(input, output, session):
         data = filtered_data()
         if data is None or data.empty:
             return None
+
+        # === CALENDAR HEATMAP MODE ===
+        if input.time_period() == "Calendar":
+            cal_data = _build_calendar_data(data)
+            if not cal_data['z']:
+                return None
+
+            fig = go.Heatmap(
+                z=cal_data['z'],
+                x=cal_data['x'],
+                y=cal_data['y'],
+                colorscale=[
+                    [0, '#ebedf0'],
+                    [0.25, '#b6d3e8'],
+                    [0.5, '#6baed6'],
+                    [0.75, '#3182bd'],
+                    [1, '#08306b']
+                ],
+                hovertemplate='<b>%{y}</b><br>Date: %{x}<br>Tokens: %{z:,}<extra></extra>',
+                xgap=2,
+                ygap=2,
+            )
+
+            fig.update_layout(
+                title="Token Usage Calendar",
+                xaxis_title="",
+                yaxis_title="Model",
+                xaxis_tickangle=-45,
+                margin=dict(l=180, r=30, t=40, b=60),
+                plot_bgcolor="white",
+                paper_bgcolor="white",
+                font=dict(size=11),
+                height=max(300, len(cal_data['y']) * 25),
+            )
+
+            fig.update_xaxes(type='category')
+            return fig
+
         agg_top5 = data.copy()
 
         top_5_models = (
