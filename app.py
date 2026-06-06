@@ -456,7 +456,7 @@ def server(input, output, session):
         # Determine grouping column based on breakdown toggle
         if input.breakdown_by() == "token_type":
             # Pivot token type columns into long format for stacking
-            token_cols = ['input_tokens', 'output_tokens', 'reasoning_tokens', 'cache_read_tokens']
+            token_cols = ['input_tokens', 'output_tokens']
             agg_top5[token_cols] = agg_top5[token_cols].fillna(0)
             agg = agg_top5.groupby("_time")[token_cols].sum().reset_index()
             agg_melted = agg.melt(id_vars=['_time'], value_vars=token_cols,
@@ -466,10 +466,8 @@ def server(input, output, session):
             )
             # Format token type names for display
             agg_melted['token_type'] = agg_melted['token_type'].map({
-                'input_tokens': 'Input',
-                'output_tokens': 'Output',
-                'reasoning_tokens': 'Reasoning',
-                'cache_read_tokens': 'Cache Read',
+                'input_tokens': 'Input Tokens',
+                'output_tokens': 'Output Tokens',
             })
 
             # Determine displayed token types (those with non-zero counts)
@@ -478,12 +476,12 @@ def server(input, output, session):
                 return None
 
             # Order consistently
-            type_order = ['Input', 'Output', 'Reasoning', 'Cache Read']
+            type_order = ['Input Tokens', 'Output Tokens']
             type_order = [t for t in type_order if t in displayed_types]
 
             agg_melted['type_order'] = agg_melted['token_type'].map({t: i for i, t in enumerate(type_order)})
 
-            palette = ['#457b9d', '#e63946', '#2a9d8f', '#f4a261']
+            palette = ['#457b9d', '#e63946']
             palette = palette[:len(type_order)]
 
             def _safe_pct(x):
