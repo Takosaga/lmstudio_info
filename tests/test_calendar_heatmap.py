@@ -219,3 +219,45 @@ def test_build_calendar_data_with_token_type_columns_missing():
 
     # Should still work, total = 400
     assert result['z'][0][0] == 400
+
+
+def test_calendar_with_real_db():
+    """Test calendar heatmap builds from actual database."""
+    from app import _build_calendar_data
+    from data_loader import load_unified_data
+
+    db_path = str(Path(__file__).parent.parent / "data" / "lmstudio_usage.db")
+
+    df = load_unified_data(db_path)
+
+    assert df is not None and not df.empty
+
+    cal_data = _build_calendar_data(df)
+
+    assert len(cal_data['y']) > 0, "Should have at least one model"
+    assert len(cal_data['x']) > 0, "Should have at least one date"
+    assert len(cal_data['z']) == len(cal_data['y']), "Z matrix rows should match y count"
+
+
+def test_calendar_time_filter():
+    """Test that calendar respects time filtering."""
+    from app import _build_calendar_data
+    from data_loader import load_unified_data
+
+    db_path = str(Path(__file__).parent.parent / "data" / "lmstudio_usage.db")
+
+    df = load_unified_data(db_path)
+
+    # Filter to last 30 days only
+    cutoff = pd.Timestamp.now() - pd.Timedelta(days=30)
+    filtered = df[pd.to_datetime(df['created_at']) >= cutoff]
+
+    cal_data = _build_calendar_data(filtered)
+
+    if not cal_data['x']:
+        return  # No data in range is acceptable
+
+    # All dates should be within last 30 days
+    for date_str in cal_data['x']:
+        d = pd.to_datetime(date_str).date()
+        assert (d >= cutoff.date()) and (d <= pd.Timestamp.now().date())
