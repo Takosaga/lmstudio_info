@@ -243,13 +243,6 @@ app_ui = ui.page_sidebar(
             selected="Monthly",
         ),
         ui.input_radio_buttons(
-            "source_filter",
-            "Source",
-            choices={"lmstudio": "LMStudio", "opencode": "OpenCode", "pi": "Pi", "all": "All Sources"},
-            selected="lmstudio",
-            inline=True,
-        ),
-        ui.input_radio_buttons(
             "breakdown_by",
             "Breakdown by",
             choices={"model": "Model", "token_type": "Token Type"},
@@ -266,7 +259,6 @@ app_ui = ui.page_sidebar(
             selected="current_year",
             inline=True,
         ),
-
         open="desktop",
     ),
     # Chart (moved above calendar)
