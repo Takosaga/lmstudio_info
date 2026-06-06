@@ -59,10 +59,10 @@ def test_build_calendar_data_empty():
     from app import _build_calendar_data
 
     result = _build_calendar_data(None)
-    assert result == {'z': [], 'x': [], 'y': []}
+    assert result == {'z': [], 'x': [], 'y': [], 'dates': []}
 
     result = _build_calendar_data(pd.DataFrame())
-    assert result == {'z': [], 'x': [], 'y': []}
+    assert result == {'z': [], 'x': [], 'y': [], 'dates': []}
 
 
 def test_build_calendar_data_aggregation():
@@ -80,11 +80,14 @@ def test_build_calendar_data_aggregation():
 
     result = _build_calendar_data(data)
 
-    # 2025-01-01 is Wednesday (row index 3), single week column
-    assert len(result['x']) >= 1
+    # With trailing 52-week range, short data lands at high column indices.
+    # Find the non-zero cell dynamically and verify the total.
     assert len(result['z']) == 7
+    flat_nonzero = [(r, c) for r in range(7) for c in range(len(result['z'][0])) if result['z'][r][c] > 0]
+    assert len(flat_nonzero) == 1
+    row, col = flat_nonzero[0]
     # Total tokens: (100+300) + (200+400) = 1000
-    assert result['z'][3][0] == 1000  # Wednesday, first week
+    assert result['z'][row][col] == 1000
 
 
 def test_build_calendar_data_multiple_models_days():
@@ -105,14 +108,16 @@ def test_build_calendar_data_multiple_models_days():
 
     result = _build_calendar_data(data)
 
-    # Should span at least 1 week
-    assert len(result['x']) >= 1
     assert len(result['z']) == 7
 
-    # 2025-01-01 (Wed, row 3): model-a=400, model-b=200 → total=600
-    # 2025-01-02 (Thu, row 4): model-a=600, model-b=350 → total=950
-    assert result['z'][3][0] == 600   # Wednesday
-    assert result['z'][4][0] == 950   # Thursday
+    # With trailing 52-week range, find non-zero cells dynamically.
+    # 2025-01-01 (Wed, row 3): total=600
+    # 2025-01-02 (Thu, row 4): total=950
+    flat_nonzero = [(r, c) for r in range(7) for c in range(len(result['z'][0])) if result['z'][r][c] > 0]
+    assert len(flat_nonzero) == 2
+    vals_by_row = {r: v for r, c in flat_nonzero for v in [result['z'][r][c]]}
+    assert vals_by_row[3] == 600   # Wednesday
+    assert vals_by_row[4] == 950   # Thursday
 
 
 def test_build_calendar_data_with_token_types():
@@ -130,8 +135,12 @@ def test_build_calendar_data_with_token_types():
 
     result = _build_calendar_data(data)
 
-    # 2025-01-01 is Wednesday (row index 3), total = 470
-    assert result['z'][3][0] == 470
+    # With trailing 52-week range, find non-zero cell dynamically.
+    flat_nonzero = [(r, c) for r in range(7) for c in range(len(result['z'][0])) if result['z'][r][c] > 0]
+    assert len(flat_nonzero) == 1
+    row, col = flat_nonzero[0]
+    # Total: 100 + 300 + 50 + 20 = 470
+    assert result['z'][row][col] == 470
 
 
 def test_build_calendar_data_z_matrix_shape():
@@ -153,6 +162,34 @@ def test_build_calendar_data_z_matrix_shape():
     assert len(result['z'][0]) >= 1  # At least 1 column (week)
 
 
+def test_build_calendar_data_52_week_range():
+    """Test that calendar always spans ~52 weeks ending on last data day."""
+    from app import _build_calendar_data
+
+    # Data spanning exactly 10 days in Jan 2025 (Wed Jan 1 to Fri Jan 10)
+    data = pd.DataFrame({
+        'model': ['gpt-4'] * 5,
+        'created_at': pd.to_datetime([
+            '2025-01-01', '2025-01-03', '2025-01-05',
+            '2025-01-07', '2025-01-09',
+        ]),
+        'input_tokens': [100] * 5,
+        'output_tokens': [300] * 5,
+        'reasoning_tokens': [0] * 5,
+        'cache_read_tokens': [0] * 5,
+    })
+
+    result = _build_calendar_data(data)
+
+    # Last data day is Jan 9, 2025 (Thursday).
+    # Start should be Jan 9 - 364 days = Jan 10, 2024.
+    # That gives exactly 52 weeks (365 days / 7 ≈ 52 columns).
+    assert len(result['z']) == 7
+    n_cols = len(result['z'][0])
+    assert n_cols >= 52, f"Expected ~52 columns, got {n_cols}"
+    assert n_cols <= 53, f"Expected ~52 columns, got {n_cols}"
+
+
 def test_build_calendar_data_with_token_type_columns_missing():
     """Test that function handles data with token type columns set to 0."""
     from app import _build_calendar_data
@@ -168,8 +205,12 @@ def test_build_calendar_data_with_token_type_columns_missing():
 
     result = _build_calendar_data(data)
 
-    # 2025-01-01 is Wednesday (row index 3), total = 400
-    assert result['z'][3][0] == 400
+    # With trailing 52-week range, find non-zero cell dynamically.
+    flat_nonzero = [(r, c) for r in range(7) for c in range(len(result['z'][0])) if result['z'][r][c] > 0]
+    assert len(flat_nonzero) == 1
+    row, col = flat_nonzero[0]
+    # Total: 100 + 300 = 400
+    assert result['z'][row][col] == 400
 
 
 def test_calendar_with_real_db():

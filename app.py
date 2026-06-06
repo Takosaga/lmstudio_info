@@ -58,7 +58,7 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
     'y' (day names). Days of week are rows, weeks are columns.
     """
     if data is None or data.empty:
-        return {'z': [], 'x': [], 'y': []}
+        return {'z': [], 'x': [], 'y': [], 'dates': []}
 
     # Calculate total tokens per row
     token_cols = ['input_tokens', 'output_tokens', 'reasoning_tokens', 'cache_read_tokens']
@@ -71,13 +71,15 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
     daily = daily.sort_values('_date').reset_index(drop=True)
 
     if daily.empty:
-        return {'z': [], 'x': [], 'y': []}
+        return {'z': [], 'x': [], 'y': [], 'dates': []}
 
     # Build 7-row × N-column matrix
     day_names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-    # Create a complete date range and map to (day_of_week, week_index)
-    all_dates = pd.date_range(start=daily['_date'].min(), end=daily['_date'].max())
+    # Create a trailing 52-week date range ending on the last data day
+    last_date = daily['_date'].max()
+    start_date = last_date - pd.Timedelta(days=364)
+    all_dates = pd.date_range(start=start_date, end=last_date)
     first_day = all_dates[0]
     date_to_tokens = dict(zip(daily['_date'], daily['total_tokens']))
 
