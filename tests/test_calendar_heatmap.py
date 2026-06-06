@@ -59,10 +59,10 @@ def test_build_calendar_data_empty():
     from app import _build_calendar_data
 
     result = _build_calendar_data(None)
-    assert result == {'z': [], 'x': [], 'y': [], 'dates': []}
+    assert result == {'z': [], 'x': [], 'y': [], 'date_strings': []}
 
     result = _build_calendar_data(pd.DataFrame())
-    assert result == {'z': [], 'x': [], 'y': [], 'dates': []}
+    assert result == {'z': [], 'x': [], 'y': [], 'date_strings': []}
 
 
 def test_build_calendar_data_aggregation():
@@ -213,8 +213,8 @@ def test_build_calendar_data_with_token_type_columns_missing():
     assert result['z'][row][col] == 400
 
 
-def test_build_calendar_data_dates_matrix():
-    """Test that result contains a 'dates' matrix matching the z matrix shape."""
+def test_build_calendar_data_date_strings():
+    """Test that result contains a 'date_strings' matrix matching the z matrix shape."""
     from app import _build_calendar_data
 
     data = pd.DataFrame({
@@ -228,11 +228,11 @@ def test_build_calendar_data_dates_matrix():
 
     result = _build_calendar_data(data)
 
-    assert 'dates' in result
-    assert len(result['dates']) == 7
-    assert len(result['dates'][0]) >= 1
+    assert 'date_strings' in result
+    assert len(result['date_strings']) == 7
+    assert len(result['date_strings'][0]) >= 1
     # Each cell should be a date string like "Jan 1, 2025" or empty string for non-data dates
-    found_non_empty = [d for row in result['dates'] for d in row if d]
+    found_non_empty = [d for row in result['date_strings'] for d in row if d]
     assert len(found_non_empty) >= 1
 
 
@@ -252,11 +252,11 @@ def test_calendar_with_real_db():
     assert len(cal_data['y']) == 7, "Should have 7 day-of-week rows"
     assert len(cal_data['x']) > 0, "Should have at least one week column"
     assert len(cal_data['z']) == 7, "Z matrix should have 7 rows"
-    assert 'dates' in cal_data, "Dates matrix should be present"
+    assert 'date_strings' in cal_data, "Date strings matrix should be present"
 
 
 def test_usage_chart_calendar_hover():
-    """Test that the calendar chart passes dates via customdata for hover."""
+    """Test that the calendar chart passes date strings via text for hover."""
     from app import _build_calendar_data
     import plotly.graph_objects as go
 
@@ -270,9 +270,9 @@ def test_usage_chart_calendar_hover():
     })
 
     cal_data = _build_calendar_data(data)
-    assert 'dates' in cal_data
+    assert 'date_strings' in cal_data
 
-    # Verify that customdata is passed correctly to Plotly Heatmap
+    # Verify that text is passed correctly to Plotly Heatmap for hover
     fig = go.Figure(go.Heatmap(
         z=cal_data['z'],
         x=cal_data['x'],
@@ -285,17 +285,16 @@ def test_usage_chart_calendar_hover():
             [0.75, '#30a14e'],
             [1, '#216e39']
         ],
-        customdata=cal_data['dates'],
-        hovertemplate='<b>%{customdata[0]}</b><br>Tokens: %{z:,}<extra></extra>',
+        text=cal_data['date_strings'],
+        hovertemplate='<b>%{text}</b><br>Tokens: %{z:,}<extra></extra>',
     ))
 
-    assert fig.data[0].customdata is not None
-    custom = fig.data[0].customdata
-    # Plotly may return tuple or ndarray; check dimensions either way
-    if hasattr(custom, 'shape'):
-        assert custom.shape == (7, len(cal_data['x']))
+    assert fig.data[0].text is not None
+    text = fig.data[0].text
+    if hasattr(text, 'shape'):
+        assert text.shape == (7, len(cal_data['x']))
     else:
-        assert len(custom) == 7 and all(len(row) == len(cal_data['x']) for row in custom)
+        assert len(text) == 7 and all(len(row) == len(cal_data['x']) for row in text)
 
 
 def test_calendar_with_real_db():

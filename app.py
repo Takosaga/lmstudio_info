@@ -58,7 +58,7 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
     'y' (day names). Days of week are rows, weeks are columns.
     """
     if data is None or data.empty:
-        return {'z': [], 'x': [], 'y': [], 'dates': []}
+        return {'z': [], 'x': [], 'y': [], 'date_strings': []}
 
     # Calculate total tokens per row
     token_cols = ['input_tokens', 'output_tokens', 'reasoning_tokens', 'cache_read_tokens']
@@ -71,7 +71,7 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
     daily = daily.sort_values('_date').reset_index(drop=True)
 
     if daily.empty:
-        return {'z': [], 'x': [], 'y': [], 'dates': []}
+        return {'z': [], 'x': [], 'y': [], 'date_strings': []}
 
     # Build 7-row × N-column matrix
     day_names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -100,13 +100,13 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
     for r in rows_data:
         z[r['row']][r['col']] = int(r['tokens'])
 
-    # Build dates matrix: same shape as z, each cell is formatted date string
-    dates = [['' for _ in range(max_col)] for _ in range(7)]
+    # Build date strings matrix: same shape as z, each cell is formatted date string
+    date_strings = [['' for _ in range(max_col)] for _ in range(7)]
     for d in all_dates:
         row = (d.dayofweek + 1) % 7
         days_since_start = (d - first_day).days
         col = days_since_start // 7
-        dates[row][col] = d.strftime('%a, %b %-d, %Y')
+        date_strings[row][col] = d.strftime('%a, %b %-d, %Y')
 
     # Build x-axis labels: month name on first week of each month, empty string otherwise
     x_labels = []
@@ -125,7 +125,7 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
         'z': z,
         'x': x_labels,
         'y': day_names,
-        'dates': dates,
+        'date_strings': date_strings,
     }
 
 # --- UI ---
@@ -339,8 +339,8 @@ def server(input, output, session):
                     [0.75, '#30a14e'],
                     [1, '#216e39']
                 ],
-                customdata=cal_data['dates'],
-                hovertemplate='<b>%{customdata[0]}</b><br>Tokens: %{z:,}<extra></extra>',
+                text=cal_data['date_strings'],
+                hovertemplate='<b>%{text}</b><br>Tokens: %{z:,}<extra></extra>',
             ))
 
             fig.update_layout(
