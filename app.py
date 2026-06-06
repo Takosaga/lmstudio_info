@@ -245,7 +245,7 @@ app_ui = ui.page_sidebar(
         ui.input_radio_buttons(
             "source_filter",
             "Source",
-            choices={"lmstudio": "LMStudio", "opencode": "OpenCode", "all": "Both"},
+            choices={"lmstudio": "LMStudio", "opencode": "OpenCode", "pi": "Pi", "all": "All Sources"},
             selected="lmstudio",
             inline=True,
         ),
