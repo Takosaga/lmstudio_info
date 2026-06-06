@@ -131,6 +131,110 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
         'ticktext': ticktext,
     }
 
+
+def _build_calendar_figure(cal_data: dict) -> go.Figure | None:
+    """Build a Plotly Figure for the GitHub-style calendar heatmap.
+
+    Takes the output of `_build_calendar_data()` and returns a fully-configured
+    go.Figure with green-shaded cells, month labels on top, day labels on left,
+    and hover text showing date + token count. Returns None if cal_data is empty.
+    """
+    if not cal_data.get('z'):
+        return None
+
+    n_cols = len(cal_data['z'][0])
+    cell_size = 28  # pixel size of each square
+    gap = 2         # white gap between cells
+    step = cell_size + gap  # pitch per cell
+    margin_l, margin_r, margin_t, margin_b = 100, 40, 50, 70
+    width = n_cols * step + margin_l + margin_r - gap
+    height = 7 * step + margin_t + margin_b - gap
+
+    # Build shapes: one rectangle per cell (crisp discrete squares, no anti-aliasing)
+    shapes = []
+    for row in range(7):
+        for col in range(n_cols):
+            tokens = cal_data['z'][row][col]
+            if tokens > 0:
+                pct = min(tokens / 100_000, 1.0)
+                if pct < 0.05:
+                    color = '#b6e2b4'
+                elif pct < 0.15:
+                    color = '#9be9a8'
+                elif pct < 0.30:
+                    color = '#40c463'
+                elif pct < 0.50:
+                    color = '#30a14e'
+                elif pct < 0.75:
+                    color = '#2ea44f'
+                else:
+                    color = '#216e39'
+            else:
+                color = '#ebedf0'
+
+            date_str = cal_data['date_strings'][row][col]
+            shapes.append(go.layout.Shape(
+                type="rect",
+                xref="x", yref="y",
+                x0=col * step, x1=(col + 1) * step - gap,
+                y0=row * step, y1=(row + 1) * step - gap,
+                fillcolor=color,
+                line=dict(width=0),
+            ))
+
+    hover_x = []
+    hover_y = []
+    hover_text = []
+    for row in range(7):
+        for col in range(n_cols):
+            tokens = cal_data['z'][row][col]
+            date_str = cal_data['date_strings'][row][col]
+            if date_str:
+                hover_x.append(col * step + cell_size / 2)
+                hover_y.append(row * step + cell_size / 2)
+                hover_text.append(f'<b>{date_str}</b><br>Tokens: {tokens:,}')
+
+    fig = go.Figure(data=[
+        go.Scatter(
+            x=hover_x, y=hover_y,
+            mode='markers',
+            marker=dict(size=1, opacity=0),
+            text=hover_text,
+            hovertemplate='%{text}<extra></extra>',
+            showlegend=False,
+        ),
+    ])
+    fig.update_layout(shapes=shapes)
+    fig.update_layout(
+        xaxis_title="",
+        yaxis_title="",
+        margin=dict(l=margin_l, r=margin_r, t=margin_t, b=margin_b),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        font=dict(size=11),
+        width=width,
+        height=height,
+    )
+
+    fig.update_xaxes(
+        type='linear',
+        range=[-gap, n_cols * step],
+        tickvals=[col * step + cell_size / 2 for col in cal_data.get('tickvals', [])],
+        ticktext=cal_data.get('ticktext', []),
+        tickangle=-15,
+        side='top',
+        showgrid=False,
+    )
+    fig.update_yaxes(
+        range=[-gap, 7 * step],
+        dtick=step,
+        tickvals=[row * step + cell_size / 2 for row in range(7)],
+        ticktext=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+        tickangle=0,
+        showgrid=False,
+    )
+    return fig
+
 # --- UI ---
 app_ui = ui.page_sidebar(
     ui.sidebar(
