@@ -427,7 +427,7 @@ def server(input, output, session):
             return "No data available."
         top = model_usage.index[0]
         tokens = int(model_usage.iloc[0])
-        return f"{top}\n{tokens:,} tokens"
+        return f"{top} — {tokens:,} tokens"
 
     @output
     @render.text
