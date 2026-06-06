@@ -84,7 +84,7 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
     # For each date, compute (row, col) position
     rows_data = []
     for d in all_dates:
-        row = d.dayofweek  # 0=Sun, 6=Sat
+        row = (d.dayofweek + 1) % 7  # Convert Mon=0 from pandas to Sun=0 for labels
         days_since_start = (d - first_day).days
         col = days_since_start // 7
         tokens = date_to_tokens.get(d.date(), 0)
