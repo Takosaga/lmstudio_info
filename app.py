@@ -106,7 +106,7 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
         row = (d.dayofweek + 1) % 7
         days_since_start = (d - first_day).days
         col = days_since_start // 7
-        dates[row][col] = d.strftime('%b %-d, %Y')
+        dates[row][col] = d.strftime('%a, %b %-d, %Y')
 
     # Build x-axis labels: month name on first week of each month, empty string otherwise
     x_labels = []
