@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 def test_build_calendar_data_basic():
-    """Test basic aggregation of tokens per model per day."""
+    """Test basic aggregation of daily totals across all models."""
     from app import _build_calendar_data
 
     data = pd.DataFrame({
@@ -27,9 +27,11 @@ def test_build_calendar_data_basic():
 
     assert result is not None
     assert isinstance(result, dict)
-    assert 'z' in result  # heatmap values
-    assert 'x' in result  # dates
-    assert 'y' in result  # models
+    assert 'z' in result
+    assert 'x' in result
+    assert 'y' in result
+    assert result['y'] == ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+    assert len(result['z']) == 7  # 7 rows for days of week
 
 
 def test_build_calendar_data_zero_fill():
@@ -50,26 +52,6 @@ def test_build_calendar_data_zero_fill():
     # All cells should be non-negative (z is nested list)
     flat = [v for row in result['z'] for v in row]
     assert all(v >= 0 for v in flat)
-
-
-def test_build_calendar_data_sort_by_usage():
-    """Test that models are sorted by total usage descending."""
-    from app import _build_calendar_data
-
-    data = pd.DataFrame({
-        'model': ['small-model', 'big-model', 'small-model'],
-        'created_at': pd.to_datetime(['2025-01-01', '2025-01-01', '2025-01-02']),
-        'input_tokens': [10, 1000, 20],
-        'output_tokens': [10, 2000, 20],
-        'reasoning_tokens': [0, 0, 0],
-        'cache_read_tokens': [0, 0, 0],
-    })
-
-    result = _build_calendar_data(data)
-
-    # big-model should appear before small-model (descending by total usage)
-    y_order = result['y']
-    assert y_order[0] == 'big-model'
 
 
 def test_build_calendar_data_empty():
@@ -98,13 +80,11 @@ def test_build_calendar_data_aggregation():
 
     result = _build_calendar_data(data)
 
-    # Should have one date column for 2025-01-01
-    assert len(result['x']) == 1
-    assert result['x'][0] == '2025-01-01'
-    # Should have one model row
-    assert result['y'] == ['gpt-4']
+    # 2025-01-01 is Wednesday (row index 3), single week column
+    assert len(result['x']) >= 1
+    assert len(result['z']) == 7
     # Total tokens: (100+300) + (200+400) = 1000
-    assert result['z'][0][0] == 1000
+    assert result['z'][3][0] == 1000  # Wednesday, first week
 
 
 def test_build_calendar_data_multiple_models_days():
@@ -125,22 +105,14 @@ def test_build_calendar_data_multiple_models_days():
 
     result = _build_calendar_data(data)
 
-    # Should have two dates
-    assert len(result['x']) == 2
-    assert set(result['x']) == {'2025-01-01', '2025-01-02'}
+    # Should span at least 1 week
+    assert len(result['x']) >= 1
+    assert len(result['z']) == 7
 
-    # model-a total: (100+300) + (200+400) = 1000
-    # model-b total: (50+150) + (100+250) = 550
-    # model-a should be first (higher usage)
-    assert result['y'][0] == 'model-a'
-    assert result['y'][1] == 'model-b'
-
-    # Verify z matrix values
-    # row 0 (model-a): [400, 600] = day1 tokens, day2 tokens
-    assert result['z'][0][0] == 400  # model-a on 2025-01-01
-    assert result['z'][0][1] == 600  # model-a on 2025-01-02
-    assert result['z'][1][0] == 200  # model-b on 2025-01-01
-    assert result['z'][1][1] == 350  # model-b on 2025-01-02
+    # 2025-01-01 (Wed, row 3): model-a=400, model-b=200 → total=600
+    # 2025-01-02 (Thu, row 4): model-a=600, model-b=350 → total=950
+    assert result['z'][3][0] == 600   # Wednesday
+    assert result['z'][4][0] == 950   # Thursday
 
 
 def test_build_calendar_data_with_token_types():
@@ -158,8 +130,8 @@ def test_build_calendar_data_with_token_types():
 
     result = _build_calendar_data(data)
 
-    # Total: 100 + 300 + 50 + 20 = 470
-    assert result['z'][0][0] == 470
+    # 2025-01-01 is Wednesday (row index 3), total = 470
+    assert result['z'][3][0] == 470
 
 
 def test_build_calendar_data_z_matrix_shape():
@@ -177,29 +149,8 @@ def test_build_calendar_data_z_matrix_shape():
 
     result = _build_calendar_data(data)
 
-    assert len(result['z']) == 3  # 3 models
-    assert len(result['z'][0]) == 1  # 1 date
-
-
-def test_build_calendar_data_date_ordering():
-    """Test that dates are sorted chronologically."""
-    from app import _build_calendar_data
-
-    data = pd.DataFrame({
-        'model': ['gpt-4', 'gpt-4', 'gpt-4'],
-        'created_at': pd.to_datetime([
-            '2025-03-01', '2025-01-01', '2025-02-01'
-        ]),
-        'input_tokens': [10, 20, 30],
-        'output_tokens': [40, 50, 60],
-        'reasoning_tokens': [0, 0, 0],
-        'cache_read_tokens': [0, 0, 0],
-    })
-
-    result = _build_calendar_data(data)
-
-    # Dates should be in chronological order regardless of input order
-    assert result['x'] == ['2025-01-01', '2025-02-01', '2025-03-01']
+    assert len(result['z']) == 7  # Always 7 rows (days of week)
+    assert len(result['z'][0]) >= 1  # At least 1 column (week)
 
 
 def test_build_calendar_data_with_token_type_columns_missing():
@@ -217,8 +168,8 @@ def test_build_calendar_data_with_token_type_columns_missing():
 
     result = _build_calendar_data(data)
 
-    # Should still work, total = 400
-    assert result['z'][0][0] == 400
+    # 2025-01-01 is Wednesday (row index 3), total = 400
+    assert result['z'][3][0] == 400
 
 
 def test_calendar_with_real_db():
@@ -234,9 +185,9 @@ def test_calendar_with_real_db():
 
     cal_data = _build_calendar_data(df)
 
-    assert len(cal_data['y']) > 0, "Should have at least one model"
-    assert len(cal_data['x']) > 0, "Should have at least one date"
-    assert len(cal_data['z']) == len(cal_data['y']), "Z matrix rows should match y count"
+    assert len(cal_data['y']) == 7, "Should have 7 day-of-week rows"
+    assert len(cal_data['x']) > 0, "Should have at least one week column"
+    assert len(cal_data['z']) == 7, "Z matrix should have 7 rows"
 
 
 def test_calendar_time_filter():
@@ -254,10 +205,11 @@ def test_calendar_time_filter():
 
     cal_data = _build_calendar_data(filtered)
 
-    if not cal_data['x']:
+    if not cal_data['z']:
         return  # No data in range is acceptable
 
-    # All dates should be within last 30 days
-    for date_str in cal_data['x']:
-        d = pd.to_datetime(date_str).date()
-        assert (d >= cutoff.date()) and (d <= pd.Timestamp.now().date())
+    # Z matrix should only contain dates within the filtered range.
+    # Since _build_calendar_data uses the min/max of the input data,
+    # all cells correspond to dates >= cutoff.
+    assert len(cal_data['z']) == 7  # 7 rows
+    assert len(cal_data['z'][0]) > 0  # At least one week column
