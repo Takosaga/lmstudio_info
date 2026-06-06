@@ -331,26 +331,59 @@ def server(input, output, session):
                 return None
 
             n_cols = len(cal_data['z'][0])
-            cell_px = 15  # target cell size in pixels
-            margin_l, margin_r, margin_t, margin_b = 80, 30, 40, 60
+            cell_px = 28  # target cell size in pixels
+            margin_l, margin_r, margin_t, margin_b = 100, 40, 50, 70
             width = n_cols * cell_px + margin_l + margin_r
             height = 7 * cell_px + margin_t + margin_b
 
-            fig = go.Figure(go.Heatmap(
-                z=cal_data['z'],
-                x=list(range(n_cols)),  # numeric indices: 0, 1, 2, ... avoids category-axis collapse
-                y=cal_data['y'],
-                colorscale=[
-                    [0, '#ebedf0'],
-                    [0.15, '#b6e2b4'],
-                    [0.3, '#9be9a8'],
-                    [0.5, '#40c463'],
-                    [0.75, '#30a14e'],
-                    [1, '#216e39']
-                ],
-                text=cal_data['date_strings'],
-                hovertemplate='<b>%{text}</b><br>Tokens: %{z:,}<extra></extra>',
-            ))
+            # Data layer with small gaps so white grid lines show between cells
+            fig = go.Figure(data=[
+                go.Heatmap(
+                    z=cal_data['z'],
+                    x=list(range(n_cols)),  # numeric indices: 0, 1, 2, ... avoids category-axis collapse
+                    y=cal_data['y'],
+                    colorscale=[
+                        [0, '#ebedf0'],
+                        [0.05, '#b6e2b4'],
+                        [0.15, '#9be9a8'],
+                        [0.3, '#40c463'],
+                        [0.6, '#30a14e'],
+                        [1, '#216e39']
+                    ],
+                    zmin=0,
+                    zmax=100_000,
+                    xgap=2,
+                    ygap=2,
+                    text=cal_data['date_strings'],
+                    hovertemplate='<b>%{text}</b><br>Tokens: %{z:,}<extra></extra>',
+                ),
+            ])
+
+            # White grid lines at cell boundaries (layer: above traces so they show over colored cells)
+            grid_shapes = []
+            # Vertical lines between columns (at x = i + 0.5 for i in 1..n_cols-1)
+            for i in range(1, n_cols):
+                grid_shapes.append(go.layout.Shape(
+                    type="rect",
+                    xref="x", yref="y",
+                    x0=i - 0.4, x1=i + 0.4,
+                    y0=-0.7, y1=7.7,
+                    fillcolor="#ffffff",
+                    line=dict(width=0),
+                    layer="above",
+                ))
+            # Horizontal lines between rows (at y = i + 0.5 for i in 1..6)
+            for i in range(1, 7):
+                grid_shapes.append(go.layout.Shape(
+                    type="rect",
+                    xref="x", yref="y",
+                    x0=-0.7, x1=n_cols - 0.3,
+                    y0=i - 0.4, y1=i + 0.4,
+                    fillcolor="#ffffff",
+                    line=dict(width=0),
+                    layer="above",
+                ))
+            fig.update_layout(shapes=grid_shapes)
 
             fig.update_layout(
                 xaxis_title="",
