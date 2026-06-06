@@ -622,11 +622,7 @@ def server(input, output, session):
     def update_time_range_choices():
         period = input.time_period()
 
-        if period == "Calendar":
-            # Calendar mode ignores breakdown_by and time_range;
-            # no update needed since those inputs only affect non-calendar charts.
-            pass
-        elif period == "Daily":
+        if period == "Daily":
             # Show all filters with Daily-appropriate time_range options
             ui.update_radio_buttons(
                 "breakdown_by",
