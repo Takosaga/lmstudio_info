@@ -71,6 +71,7 @@ def init_db(db_path):
                 output_tokens INTEGER DEFAULT 0,
                 reasoning_tokens INTEGER DEFAULT 0,
                 cache_read_tokens INTEGER DEFAULT 0,
+                cache_write_tokens INTEGER DEFAULT 0,
                 tool_call_count INTEGER DEFAULT 0
             )
         ''')
@@ -84,6 +85,7 @@ def init_db(db_path):
             ('output_tokens', 'INTEGER DEFAULT 0'),
             ('reasoning_tokens', 'INTEGER DEFAULT 0'),
             ('cache_read_tokens', 'INTEGER DEFAULT 0'),
+            ('cache_write_tokens', 'INTEGER DEFAULT 0'),
             ('tool_call_count', 'INTEGER DEFAULT 0'),
         ]
         for col_name, col_def in new_columns:
@@ -143,6 +145,7 @@ def get_or_create_table(conn):
                 output_tokens INTEGER DEFAULT 0,
                 reasoning_tokens INTEGER DEFAULT 0,
                 cache_read_tokens INTEGER DEFAULT 0,
+                cache_write_tokens INTEGER DEFAULT 0,
                 tool_call_count INTEGER DEFAULT 0
             )
         ''')
@@ -156,6 +159,7 @@ def get_or_create_table(conn):
         ('output_tokens', 'INTEGER DEFAULT 0'),
         ('reasoning_tokens', 'INTEGER DEFAULT 0'),
         ('cache_read_tokens', 'INTEGER DEFAULT 0'),
+        ('cache_write_tokens', 'INTEGER DEFAULT 0'),
         ('tool_call_count', 'INTEGER DEFAULT 0'),
     ]
     for col_name, col_def in new_columns:
@@ -278,8 +282,8 @@ def upsert_conversation(db_path, conversation_data):
                 INSERT INTO conversations (
                     filename, token_count, message_count, model,
                     created_at, user_last_message_at, updated_at,
-                    source, input_tokens, output_tokens, reasoning_tokens, cache_read_tokens, tool_call_count
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    source, input_tokens, output_tokens, reasoning_tokens, cache_read_tokens, cache_write_tokens, tool_call_count
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 filename,
                 conversation_data.get('token_count', 0),
@@ -293,6 +297,7 @@ def upsert_conversation(db_path, conversation_data):
                 conversation_data.get('output_tokens', 0),
                 conversation_data.get('reasoning_tokens', 0),
                 conversation_data.get('cache_read_tokens', 0),
+                conversation_data.get('cache_write_tokens', 0),
                 conversation_data.get('tool_call_count', 0),
             ))
             conn.commit()
