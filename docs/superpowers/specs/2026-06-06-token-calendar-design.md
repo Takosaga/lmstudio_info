@@ -18,13 +18,13 @@ For each day in the last 365 days from the most recent conversation:
 - **Chart type**: Plotly heatmap (`go.Heatmap`).
 - **X-axis**: Days of the year, labeled by week boundaries.
 - **Y-axis**: Models sorted by total usage (descending).
-- **Color scale**: Blue gradient from light gray (`#f0f0f0`) for zero to dark blue (`#1a4d8c`) for highest token count.
+- **Color scale**: 5-level blue gradient from light gray (`#ebedf0`) for zero tokens to dark blue (`#0e4429`) for highest token count, matching GitHub's contribution palette.
 - **Hover tooltip**: Model name, date, and total token count with comma formatting.
 - **Time span**: Exactly 365 days from the most recent `user_last_message_at` in the dataset.
 
 ## Integration
 
-- New "Calendar" tab in the existing Shiny app (`app.py`).
-- Added as a new radio button choice under `time_period` or as a separate sidebar control.
+- New "Calendar" radio button in the existing sidebar of `app.py`, alongside "Monthly" and "Daily" choices.
+- When selected, replaces the main chart area with the heatmap instead of the stacked bar chart.
 - Uses `shinywidgets.render_plotly()` consistent with the existing `usage_chart`.
 - Reuses the same data loading pipeline (`_load_all_sources()`) — no new DB queries.
