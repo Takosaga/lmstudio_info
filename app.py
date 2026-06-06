@@ -40,7 +40,14 @@ def _load_all_sources():
     except Exception:
         pass  # Skip OpenCode sync if path doesn't exist
 
-    # 3. Load unified data from DB
+    # 3. Sync Pi sessions from JSONL files
+    try:
+        import pi_db
+        pi_db.sync_pi_tokens()
+    except Exception:
+        pass  # Skip Pi sync if sessions directory doesn't exist
+
+    # 4. Load unified data from DB
     from data_loader import load_unified_data
     try:
         df = load_unified_data(str(_DB_PATH))
