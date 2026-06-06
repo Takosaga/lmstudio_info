@@ -316,7 +316,7 @@ app_ui = ui.page_sidebar(
 def server(input, output, session):
     @reactive.calc
     def filtered_data():
-        """Filter data based on selected time range and source."""
+        """Filter data based on selected time range (all sources)."""
         if df is None:
             return None
         data = df.copy()
@@ -326,11 +326,6 @@ def server(input, output, session):
                     'reasoning_tokens', 'cache_read_tokens', 'tool_call_count']:
             if col in data.columns:
                 data[col] = data[col].fillna(0)
-
-        # Source filter
-        src = input.source_filter()
-        if src and src != "all":
-            data = data[data["source"] == src]
 
         if data.empty:
             return data
