@@ -213,6 +213,48 @@ def test_build_calendar_data_with_token_type_columns_missing():
     assert result['z'][row][col] == 400
 
 
+def test_build_calendar_data_dates_matrix():
+    """Test that result contains a 'dates' matrix matching the z matrix shape."""
+    from app import _build_calendar_data
+
+    data = pd.DataFrame({
+        'model': ['gpt-4'],
+        'created_at': pd.to_datetime(['2025-01-01']),
+        'input_tokens': [100],
+        'output_tokens': [300],
+        'reasoning_tokens': [0],
+        'cache_read_tokens': [0],
+    })
+
+    result = _build_calendar_data(data)
+
+    assert 'dates' in result
+    assert len(result['dates']) == 7
+    assert len(result['dates'][0]) >= 1
+    # Each cell should be a date string like "Jan 1, 2025" or empty string for non-data dates
+    found_non_empty = [d for row in result['dates'] for d in row if d]
+    assert len(found_non_empty) >= 1
+
+
+def test_calendar_with_real_db():
+    """Test calendar heatmap builds from actual database."""
+    from app import _build_calendar_data
+    from data_loader import load_unified_data
+
+    db_path = str(Path(__file__).parent.parent / "data" / "lmstudio_usage.db")
+
+    df = load_unified_data(db_path)
+
+    assert df is not None and not df.empty
+
+    cal_data = _build_calendar_data(df)
+
+    assert len(cal_data['y']) == 7, "Should have 7 day-of-week rows"
+    assert len(cal_data['x']) > 0, "Should have at least one week column"
+    assert len(cal_data['z']) == 7, "Z matrix should have 7 rows"
+    assert 'dates' in cal_data, "Dates matrix should be present"
+
+
 def test_calendar_with_real_db():
     """Test calendar heatmap builds from actual database."""
     from app import _build_calendar_data

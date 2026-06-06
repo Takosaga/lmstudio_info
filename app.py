@@ -100,6 +100,14 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
     for r in rows_data:
         z[r['row']][r['col']] = int(r['tokens'])
 
+    # Build dates matrix: same shape as z, each cell is formatted date string
+    dates = [['' for _ in range(max_col)] for _ in range(7)]
+    for d in all_dates:
+        row = (d.dayofweek + 1) % 7
+        days_since_start = (d - first_day).days
+        col = days_since_start // 7
+        dates[row][col] = d.strftime('%b %-d, %Y')
+
     # Build x-axis labels: month name on first week of each month, empty string otherwise
     x_labels = []
     current_month = None
@@ -117,6 +125,7 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
         'z': z,
         'x': x_labels,
         'y': day_names,
+        'dates': dates,
     }
 
 # --- UI ---
