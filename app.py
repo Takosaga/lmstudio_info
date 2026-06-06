@@ -52,11 +52,10 @@ df = _load_all_sources()
 
 
 def _build_calendar_data(data: pd.DataFrame) -> dict:
-    """Build heatmap data for token calendar.
+    """Build GitHub-style calendar heatmap data.
 
-    Returns dict with 'z' (token counts), 'x' (dates), 'y' (models).
-    Models sorted by total usage descending. Days zero-filled.
-    NaN values are replaced with 0 to prevent JSON serialization errors.
+    Returns dict with 'z' (7×N token matrix), 'x' (week labels with month names),
+    'y' (day names). Days of week are rows, weeks are columns.
     """
     if data is None or data.empty:
         return {'z': [], 'x': [], 'y': []}
@@ -67,32 +66,55 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
     df['total_tokens'] = df[token_cols].sum(axis=1)
     df['_date'] = pd.to_datetime(df['created_at']).dt.date
 
-    # Group by model and date
-    agg = df.groupby(['model', '_date'])['total_tokens'].sum().reset_index()
+    # Aggregate daily totals across all models
+    daily = df.groupby('_date')['total_tokens'].sum().reset_index()
+    daily = daily.sort_values('_date').reset_index(drop=True)
 
-    if agg.empty:
+    if daily.empty:
         return {'z': [], 'x': [], 'y': []}
 
-    # Sort models by total usage descending
-    model_totals = agg.groupby('model')['total_tokens'].sum().sort_values(ascending=False)
-    sorted_models = model_totals.index.tolist()
+    # Build 7-row × N-column matrix
+    day_names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
-    # Pivot to matrix: rows=models, columns=dates
-    all_dates = sorted(agg['_date'].unique())
-    pivot = agg.pivot_table(index='model', columns='_date', values='total_tokens', fill_value=0)
+    # Create a complete date range and map to (day_of_week, week_index)
+    all_dates = pd.date_range(start=daily['_date'].min(), end=daily['_date'].max())
+    first_day = all_dates[0]
+    date_to_tokens = dict(zip(daily['_date'], daily['total_tokens']))
 
-    # Reindex to include all dates (zero-fill gaps) and sort models
-    pivot = pivot.reindex(columns=all_dates, fill_value=0)
-    pivot = pivot.reindex(index=sorted_models)
+    # For each date, compute (row, col) position
+    rows_data = []
+    for d in all_dates:
+        row = d.dayofweek  # 0=Sun, 6=Sat
+        days_since_start = (d - first_day).days
+        col = days_since_start // 7
+        tokens = date_to_tokens.get(d.date(), 0)
+        rows_data.append({'row': row, 'col': col, 'tokens': tokens})
 
-    # Replace any NaN with 0 (defensive — prevents JSON serialization errors)
-    z_values = pivot.values.tolist()
-    z_clean = [[max(0, v) for v in row] for row in z_values]
+    # Determine matrix dimensions
+    max_col = max(r['col'] for r in rows_data) + 1 if rows_data else 0
+
+    # Initialize z matrix (7 rows × max_col columns) with zeros
+    z = [[0] * max_col for _ in range(7)]
+    for r in rows_data:
+        z[r['row']][r['col']] = int(r['tokens'])
+
+    # Build x-axis labels: month name on first week of each month, empty string otherwise
+    x_labels = []
+    current_month = None
+    for w in range(max_col):
+        week_start = first_day + pd.Timedelta(weeks=w)
+        month_name = week_start.strftime('%b')
+
+        if current_month is None or month_name != current_month:
+            x_labels.append(month_name)
+            current_month = month_name
+        else:
+            x_labels.append('')
 
     return {
-        'z': z_clean,
-        'x': [str(d) for d in all_dates],
-        'y': list(pivot.index),
+        'z': z,
+        'x': x_labels,
+        'y': day_names,
     }
 
 # --- UI ---
