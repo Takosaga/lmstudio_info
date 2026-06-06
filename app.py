@@ -56,6 +56,7 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
 
     Returns dict with 'z' (token counts), 'x' (dates), 'y' (models).
     Models sorted by total usage descending. Days zero-filled.
+    NaN values are replaced with 0 to prevent JSON serialization errors.
     """
     if data is None or data.empty:
         return {'z': [], 'x': [], 'y': []}
@@ -84,8 +85,12 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
     pivot = pivot.reindex(columns=all_dates, fill_value=0)
     pivot = pivot.reindex(index=sorted_models)
 
+    # Replace any NaN with 0 (defensive — prevents JSON serialization errors)
+    z_values = pivot.values.tolist()
+    z_clean = [[max(0, v) for v in row] for row in z_values]
+
     return {
-        'z': pivot.values.tolist(),
+        'z': z_clean,
         'x': [str(d) for d in all_dates],
         'y': list(pivot.index),
     }
@@ -289,7 +294,7 @@ def server(input, output, session):
             if not cal_data['z']:
                 return None
 
-            fig = go.Heatmap(
+            fig = go.Figure(go.Heatmap(
                 z=cal_data['z'],
                 x=cal_data['x'],
                 y=cal_data['y'],
@@ -300,10 +305,8 @@ def server(input, output, session):
                     [0.75, '#3182bd'],
                     [1, '#08306b']
                 ],
-                hovertemplate='<b>%{y}</b><br>Date: %{x}<br>Tokens: %{z:,}<extra></extra>',
-                xgap=2,
-                ygap=2,
-            )
+                hovertemplate='<b>%{y}</b><br>Date: %{x}<br>Tokens: %{z}<extra></extra>',
+            ))
 
             fig.update_layout(
                 title="Token Usage Calendar",
