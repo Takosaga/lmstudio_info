@@ -103,11 +103,20 @@ def load_usage_data(db_path=None, start_date=None, end_date=None):
         
         query += " ORDER BY created_at NULLS LAST"
         
-        df = pd.read_sql_query(query, conn, params=params if params else None, parse_dates=["created_at"])
-        
+        df = pd.read_sql_query(query, conn, params=params if params else None)
+
+        # Convert date columns manually with format='mixed' to handle
+        # mixed microsecond precision (some rows have .676000, others have no microseconds).
+        # pandas parse_dates infers format from early rows and fails on later rows.
+        df["created_at"] = pd.to_datetime(df["created_at"], format="mixed", errors="coerce")
+        if "user_last_message_at" in df.columns:
+            df["user_last_message_at"] = pd.to_datetime(
+                df["user_last_message_at"], format="mixed", errors="coerce"
+            )
+
         if df.empty:
             raise FileNotFoundError(f"Database exists but is empty at {db_path}")
-            
+
         return df
         
     except sqlite3.OperationalError as e:
@@ -153,7 +162,12 @@ def load_unified_data(db_path, start_date=None, end_date=None):
 
         query += " ORDER BY created_at NULLS LAST"
 
-        df = pd.read_sql_query(query, conn, params=params if params else None, parse_dates=["created_at"])
+        df = pd.read_sql_query(query, conn, params=params if params else None)
+
+        # Convert date columns manually with format='mixed' to handle
+        # mixed microsecond precision (some rows have .676000, others have no microseconds).
+        # pandas parse_dates infers format from early rows and fails on later rows.
+        df["created_at"] = pd.to_datetime(df["created_at"], format="mixed", errors="coerce")
 
         return df
 
