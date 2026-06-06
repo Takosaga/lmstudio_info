@@ -49,6 +49,46 @@ def _load_all_sources():
 
 df = _load_all_sources()
 
+
+def _build_calendar_data(data: pd.DataFrame) -> dict:
+    """Build heatmap data for token calendar.
+
+    Returns dict with 'z' (token counts), 'x' (dates), 'y' (models).
+    Models sorted by total usage descending. Days zero-filled.
+    """
+    if data is None or data.empty:
+        return {'z': [], 'x': [], 'y': []}
+
+    # Calculate total tokens per row
+    token_cols = ['input_tokens', 'output_tokens', 'reasoning_tokens', 'cache_read_tokens']
+    df = data.copy()
+    df['total_tokens'] = df[token_cols].sum(axis=1)
+    df['_date'] = pd.to_datetime(df['created_at']).dt.date
+
+    # Group by model and date
+    agg = df.groupby(['model', '_date'])['total_tokens'].sum().reset_index()
+
+    if agg.empty:
+        return {'z': [], 'x': [], 'y': []}
+
+    # Sort models by total usage descending
+    model_totals = agg.groupby('model')['total_tokens'].sum().sort_values(ascending=False)
+    sorted_models = model_totals.index.tolist()
+
+    # Pivot to matrix: rows=models, columns=dates
+    all_dates = sorted(agg['_date'].unique())
+    pivot = agg.pivot_table(index='model', columns='_date', values='total_tokens', fill_value=0)
+
+    # Reindex to include all dates (zero-fill gaps) and sort models
+    pivot = pivot.reindex(columns=all_dates, fill_value=0)
+    pivot = pivot.reindex(index=sorted_models)
+
+    return {
+        'z': pivot.values.tolist(),
+        'x': [str(d) for d in all_dates],
+        'y': list(pivot.index),
+    }
+
 # --- UI ---
 app_ui = ui.page_sidebar(
     ui.sidebar(
