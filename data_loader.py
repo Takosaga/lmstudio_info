@@ -169,6 +169,12 @@ def load_unified_data(db_path, start_date=None, end_date=None):
         # pandas parse_dates infers format from early rows and fails on later rows.
         df["created_at"] = pd.to_datetime(df["created_at"], format="mixed", errors="coerce")
 
+        # Fill NaN in numeric token columns with 0 to prevent JSON serialization errors
+        token_cols = ['input_tokens', 'output_tokens', 'reasoning_tokens', 'cache_read_tokens']
+        for col in token_cols:
+            if col in df.columns:
+                df[col] = df[col].fillna(0)
+
         return df
 
     except sqlite3.OperationalError as e:

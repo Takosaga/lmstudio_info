@@ -64,6 +64,7 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
     # Calculate total tokens per row
     token_cols = ['input_tokens', 'output_tokens', 'reasoning_tokens', 'cache_read_tokens']
     df = data.copy()
+    df[token_cols] = df[token_cols].fillna(0)
     df['total_tokens'] = df[token_cols].sum(axis=1)
     df['_date'] = pd.to_datetime(df['created_at']).dt.date
 
@@ -145,8 +146,8 @@ def _build_calendar_figure(cal_data: dict) -> go.Figure | None:
         return None
 
     n_cols = len(cal_data['z'][0])
-    cell_size = 28  # pixel size of each square
-    gap = 2         # white gap between cells
+    cell_size = 40  # pixel size of each square (was 28)
+    gap = 3         # white gap between cells
     step = cell_size + gap  # pitch per cell
     margin_l, margin_r, margin_t, margin_b = 100, 40, 50, 70
     width = n_cols * step + margin_l + margin_r - gap
@@ -220,6 +221,7 @@ def _build_calendar_figure(cal_data: dict) -> go.Figure | None:
         tickvals=[row * step + cell_size / 2 for row in range(7)],
         ticktext=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
         tickangle=0,
+        autorange='reversed',
         showgrid=False,
     )
     return fig
@@ -253,17 +255,17 @@ app_ui = ui.page_sidebar(
             choices={
                 "90": "90 days",
                 "current_year": "Current Year",
-                "all": "All Time",
             },
             selected="current_year",
             inline=True,
         ),
+
         open="desktop",
     ),
-    # Calendar Heatmap — always visible at top
+    # Chart (moved above calendar)
     ui.card(
-        ui.card_header("Token Usage Calendar"),
-        output_widget("calendar_chart"),
+        ui.card_header("Token Usage Over Time"),
+        output_widget("usage_chart"),
     ),
     # KPI Cards - centered
     ui.row(
@@ -301,10 +303,11 @@ app_ui = ui.page_sidebar(
         ),
         class_="justify-content-center mb-4 kpi-row",
     ),
-    # Chart
+    # Calendar Heatmap — full year, all sources, larger
     ui.card(
-        ui.card_header("Token Usage Over Time"),
-        output_widget("usage_chart"),
+        ui.card_header("Token Usage Calendar"),
+        output_widget("calendar_chart"),
+        class_="calendar-card",
     ),
     ui.include_css(str(Path(__file__).parent / "assets" / "styles.css")),
     fillable=True,
@@ -319,12 +322,16 @@ def server(input, output, session):
             return None
         data = df.copy()
 
+        # Fill NaN in all numeric columns to prevent JSON serialization errors
+        for col in ['token_count', 'message_count', 'input_tokens', 'output_tokens',
+                    'reasoning_tokens', 'cache_read_tokens', 'tool_call_count']:
+            if col in data.columns:
+                data[col] = data[col].fillna(0)
+
         # Source filter
         src = input.source_filter()
         if src and src != "all":
             data = data[data["source"] == src]
-
-
 
         if data.empty:
             return data
@@ -343,25 +350,14 @@ def server(input, output, session):
         elif tr == "current_year":
             cutoff = pd.Timestamp.now().replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
             data = data[data["_date"] >= cutoff]
-        # "all" returns unfiltered data
         return data
 
     @reactive.calc
     def calendar_data():
-        """Calendar heatmap data — always 52 weeks from last entry, source-filtered only."""
-        if df is None:
+        """Calendar heatmap data — always 52 weeks from last entry, all sources combined."""
+        if df is None or df.empty:
             return None
-        data = df.copy()
-
-        # Source filter only (no time range filter for calendar)
-        src = input.source_filter()
-        if src and src != "all":
-            data = data[data["source"] == src]
-
-        if data.empty:
-            return None
-
-        return _build_calendar_data(data)
+        return _build_calendar_data(df)
 
     @output
     @render.text
@@ -467,6 +463,7 @@ def server(input, output, session):
         if input.breakdown_by() == "token_type":
             # Pivot token type columns into long format for stacking
             token_cols = ['input_tokens', 'output_tokens', 'reasoning_tokens', 'cache_read_tokens']
+            agg_top5[token_cols] = agg_top5[token_cols].fillna(0)
             agg = agg_top5.groupby("_time")[token_cols].sum().reset_index()
             agg_melted = agg.melt(id_vars=['_time'], value_vars=token_cols,
                                    var_name='token_type', value_name='token_count')
@@ -499,7 +496,7 @@ def server(input, output, session):
                 s = x.sum()
                 return (x / s * 100).round(1) if s > 0 else 0.0
 
-            agg_melted['_pct'] = agg_melted.groupby('_time')['token_count'].transform(_safe_pct)
+            agg_melted['_pct'] = agg_melted.groupby('_time')['token_count'].transform(_safe_pct).fillna(0)
 
             fig = px.bar(
                 agg_melted,
@@ -513,7 +510,7 @@ def server(input, output, session):
                     'token_type': type_order,
                     '_time_label': agg_melted.drop_duplicates('_time')['_time_label'].tolist(),
                 },
-                text=agg_melted['token_count'].apply(lambda x: f"{x:,}" if x > 100 else ""),
+                text=agg_melted['token_count'].apply(lambda x: f"{x:,}" if pd.notna(x) and x > 100 else ""),
                 hover_data={
                     'token_type': True,
                     'token_count': True,
@@ -528,10 +525,13 @@ def server(input, output, session):
             )
             legend_title = "Top 5 Token Types"
         else:
-            # === MODEL-BASED CHART LOGIC (unchanged from original) ===
+            # === MODEL-BASED CHART LOGIC ===
             agg = agg_top5.groupby(["_time", "model"])["token_count"].sum().reset_index()
             if agg.empty:
                 return None
+
+            # Guard against NaN in token_count after groupby
+            agg["token_count"] = agg["token_count"].fillna(0)
 
             # Format time labels for display
             if gran == "Monthly":
@@ -550,9 +550,9 @@ def server(input, output, session):
             palette = ["#2ec4b6", "#e16462", "#65a000", "#ff7f0e", "#7c3aed"]
             palette = palette[:len(displayed_models)]
 
-            # Compute percentages for tooltips
+            # Compute percentages for tooltips (guard against div by zero)
             period_totals = agg.groupby("_time")["token_count"].transform("sum")
-            agg["_pct"] = (agg["token_count"] / period_totals * 100).round(1)
+            agg["_pct"] = (agg["token_count"] / period_totals * 100).round(1).fillna(0)
 
             # Plotly stacked bar with hover tooltips
             fig = px.bar(
@@ -567,7 +567,7 @@ def server(input, output, session):
                     "model": [m for m, _ in sorted(model_order.items(), key=lambda x: x[1])],
                     "_time_label": agg.drop_duplicates("_time")["_time_label"].tolist(),
                 },
-                text=agg["token_count"].apply(lambda x: f"{x:,}" if x > 100 else ""),
+                text=agg["token_count"].apply(lambda x: f"{x:,}" if pd.notna(x) and x > 100 else ""),
                 hover_data={
                     "model": True,
                     "token_count": True,
@@ -612,7 +612,6 @@ def server(input, output, session):
         period = input.time_period()
 
         if period == "Daily":
-            # Show all filters with Daily-appropriate time_range options
             ui.update_radio_buttons(
                 "breakdown_by",
                 choices={"model": "Model", "token_type": "Token Type"},
@@ -624,7 +623,6 @@ def server(input, output, session):
                 selected="30",
             )
         else:  # Monthly
-            # Show all filters with Monthly-appropriate time_range options
             ui.update_radio_buttons(
                 "breakdown_by",
                 choices={"model": "Model", "token_type": "Token Type"},
@@ -635,7 +633,6 @@ def server(input, output, session):
                 choices={
                     "90": "90 days",
                     "current_year": "Current Year",
-                    "all": "All Time",
                 },
                 selected="current_year",
             )
