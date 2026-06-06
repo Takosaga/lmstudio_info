@@ -124,7 +124,7 @@ app_ui = ui.page_sidebar(
             "time_period",
             "Time Period",
             choices={"Monthly": "Monthly", "Daily": "Daily", "Calendar": "Calendar"},
-            selected="Monthly",
+            selected="Calendar",
         ),
         ui.input_radio_buttons(
             "source_filter",
@@ -322,24 +322,27 @@ def server(input, output, session):
                 y=cal_data['y'],
                 colorscale=[
                     [0, '#ebedf0'],
-                    [0.25, '#b6d3e8'],
-                    [0.5, '#6baed6'],
-                    [0.75, '#3182bd'],
-                    [1, '#08306b']
+                    [0.15, '#b6e2b4'],
+                    [0.3, '#9be9a8'],
+                    [0.5, '#40c463'],
+                    [0.75, '#30a14e'],
+                    [1, '#216e39']
                 ],
-                hovertemplate='<b>%{y}</b><br>Date: %{x}<br>Tokens: %{z}<extra></extra>',
+                hovertemplate='<b>%{x}</b><br>Date: %{y}<br>Tokens: %{z:,}<extra></extra>',
             ))
 
             fig.update_layout(
-                title="Token Usage Calendar",
                 xaxis_title="",
-                yaxis_title="Model",
-                xaxis_tickangle=-45,
-                margin=dict(l=180, r=30, t=40, b=60),
+                yaxis_title="",
+                margin=dict(l=80, r=30, t=40, b=60),
                 plot_bgcolor="white",
                 paper_bgcolor="white",
                 font=dict(size=11),
-                height=max(300, len(cal_data['y']) * 25),
+                height=250,
+                xaxis=dict(
+                    tickangle=-15,
+                    side='top',
+                ),
             )
 
             fig.update_xaxes(type='category')
@@ -504,16 +507,34 @@ def server(input, output, session):
         fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="LightGray")
         return fig
 
-    # Update time_range choices based on time_period selection
+    # Dynamic filter visibility based on time_period selection
     @reactive.effect
     def update_time_range_choices():
-        if input.time_period() == "Daily":
+        period = input.time_period()
+
+        if period == "Calendar":
+            # Hide breakdown_by and time_range for calendar view
+            ui.update_radio_buttons("breakdown_by", choices={})
+            ui.update_radio_buttons("time_range", choices={})
+        elif period == "Daily":
+            # Show all filters with Daily-appropriate time_range options
+            ui.update_radio_buttons(
+                "breakdown_by",
+                choices={"model": "Model", "token_type": "Token Type"},
+                selected="model",
+            )
             ui.update_radio_buttons(
                 "time_range",
                 choices={"7": "7 days", "30": "30 days", "90": "90 days"},
                 selected="30",
             )
-        else:
+        else:  # Monthly
+            # Show all filters with Monthly-appropriate time_range options
+            ui.update_radio_buttons(
+                "breakdown_by",
+                choices={"model": "Model", "token_type": "Token Type"},
+                selected="model",
+            )
             ui.update_radio_buttons(
                 "time_range",
                 choices={
