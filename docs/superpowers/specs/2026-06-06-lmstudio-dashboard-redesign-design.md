@@ -41,20 +41,17 @@ Separate the calendar from the Time Period selector. The calendar always display
    - Independent of `time_period` and `time_range` inputs
 
 2. **New output: `calendar_chart`**
-   - Renders the heatmap at the top of the page
-   - Reuses existing Plotly rendering code (no duplication)
+   - Renders the heatmap at the top of the page using `_build_calendar_figure()` helper
    - Placed in `app_ui` before KPI row
 
-3. **KPI card update: `top_model`**
-   - Before: two lines — model name on first line, token count on second
-   - After: one line — `model_name — {tokens:,} tokens`
+3. **Extract calendar figure builder** — move the Plotly figure-building logic currently inline in `usage_chart()` (under `if input.time_period() == "Calendar"`) into a new standalone helper `_build_calendar_figure(cal_data)` that returns a `go.Figure`. This avoids code duplication since the calendar output will call this same helper.
 
-4. **Sidebar update: `time_period`**
+5. **Sidebar update: `time_period`**
    - Before: `{"Monthly": "Monthly", "Daily": "Daily", "Calendar": "Calendar"}`
    - After: `{"Monthly": "Monthly", "Daily": "Daily"}`
    - Default remains `"Monthly"`
 
-5. **UI reordering in `app_ui`**
+6. **UI reordering in `app_ui`**
    - Sidebar (unchanged except time_period choices)
    - Calendar chart output (new, top)
    - KPI cards row (moved below calendar)
