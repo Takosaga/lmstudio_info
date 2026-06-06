@@ -8,6 +8,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import lmstudio_db
+
+import pi_db
 from pi_db import _extract_tokens, _parse_timestamp, _msg_to_conversation
 
 
@@ -89,3 +92,91 @@ def test_msg_to_conversation_zero_tokens_skipped():
 def test_msg_to_conversation_missing_message_key():
     line = {"type": "session", "id": "abc123"}
     assert _msg_to_conversation(line) is None
+
+
+def test_sync_pi_tokens_basic():
+    """Test syncing assistant messages from mock JSONL session files."""
+    tmpdir = tempfile.mkdtemp()
+
+    # Create a mock pi sessions directory with a subdirectory
+    sess_dir = os.path.join(tmpdir, "sessions", "--home-takosaga--")
+    os.makedirs(sess_dir)
+
+    # Write a JSONL file with mixed message types
+    jsonl_path = os.path.join(sess_dir, "2026-06-06T15-36-15_abc123.jsonl")
+    messages = [
+        {"type": "session", "version": 1, "id": "sess_001"},
+        {"type": "message", "timestamp": "2026-06-06T15:36:15.145Z", "message": {
+            "role": "user", "content": "hello"
+        }},
+        {"type": "message", "timestamp": "2026-06-06T15:36:16.200Z", "message": {
+            "role": "assistant",
+            "id": "msg_001",
+            "usage": {"input": 100, "output": 200, "cacheRead": 50, "cacheWrite": 10, "totalTokens": 360},
+        }},
+        {"type": "message", "timestamp": "2026-06-06T15:36:17.300Z", "message": {
+            "role": "assistant",
+            "id": "msg_002",
+            "usage": {"input": 50, "output": 100, "cacheRead": 0, "cacheWrite": 0},
+        }},
+        {"type": "message", "timestamp": "2026-06-06T15:36:18.400Z", "message": {
+            "role": "assistant",
+            "id": "msg_zero",
+            "usage": {"input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0},
+        }},
+    ]
+    with open(jsonl_path, "w") as f:
+        for msg in messages:
+            f.write(json.dumps(msg) + "\n")
+
+    # Create lmstudio_usage.db
+    lmstudio_db_path = os.path.join(tmpdir, "lmstudio_usage.db")
+    lmstudio_db.init_db(lmstudio_db_path)
+
+    synced = pi_db.sync_pi_tokens(
+        db_path=os.path.join(tmpdir, "sessions"),
+        lmstudio_db_path=lmstudio_db_path,
+    )
+
+    assert synced == 2  # msg_001 and msg_002 (user and zero-token skipped)
+
+    # Verify data in DB
+    import sqlite3
+    conn = sqlite3.connect(lmstudio_db_path)
+    c = conn.cursor()
+
+    c.execute("SELECT COUNT(*) FROM conversations WHERE source = 'pi'")
+    assert c.fetchone()[0] == 2
+
+    # Check msg_001
+    c.execute(
+        "SELECT model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, token_count "
+        "FROM conversations WHERE filename LIKE '%msg_001%'"
+    )
+    row = c.fetchone()
+    assert row is not None
+    assert row[0] == ""  # no modelId in test data
+    assert row[1] == 100
+    assert row[2] == 200
+    assert row[3] == 50
+    assert row[4] == 10
+    assert row[5] == 360
+
+    # Check msg_002
+    c.execute(
+        "SELECT input_tokens, output_tokens, cache_write_tokens FROM conversations WHERE filename LIKE '%msg_002%'"
+    )
+    row = c.fetchone()
+    assert row is not None
+    assert row[0] == 50
+    assert row[1] == 100
+
+    conn.close()
+
+
+def test_sync_pi_tokens_no_sessions_dir():
+    """Test graceful handling when sessions directory doesn't exist."""
+    synced = pi_db.sync_pi_tokens(
+        db_path="/nonexistent/pi/sessions"
+    )
+    assert synced == 0
