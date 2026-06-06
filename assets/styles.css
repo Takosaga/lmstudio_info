@@ -2,3 +2,9 @@
     display: flex;
     justify-content: center;
 }
+
+/* Center plotly charts in their containers */
+.js-plotly-plot {
+    margin-left: auto !important;
+    margin-right: auto !important;
+}

@@ -331,60 +331,70 @@ def server(input, output, session):
                 return None
 
             n_cols = len(cal_data['z'][0])
-            cell_px = 28  # target cell size in pixels
+            cell_size = 28  # pixel size of each square
+            gap = 2         # white gap between cells
+            step = cell_size + gap  # pitch per cell
             margin_l, margin_r, margin_t, margin_b = 100, 40, 50, 70
-            width = n_cols * cell_px + margin_l + margin_r
-            height = 7 * cell_px + margin_t + margin_b
+            width = n_cols * step + margin_l + margin_r - gap
+            height = 7 * step + margin_t + margin_b - gap
 
-            # Data layer with small gaps so white grid lines show between cells
+            # Build shapes: one rectangle per cell (crisp discrete squares, no anti-aliasing)
+            shapes = []
+            for row in range(7):
+                for col in range(n_cols):
+                    tokens = cal_data['z'][row][col]
+                    if tokens > 0:
+                        # Map token count to green shade
+                        pct = min(tokens / 100_000, 1.0)
+                        if pct < 0.05:
+                            color = '#b6e2b4'
+                        elif pct < 0.15:
+                            color = '#9be9a8'
+                        elif pct < 0.30:
+                            color = '#40c463'
+                        elif pct < 0.50:
+                            color = '#30a14e'
+                        elif pct < 0.75:
+                            color = '#2ea44f'
+                        else:
+                            color = '#216e39'
+                    else:
+                        color = '#ebedf0'  # no activity = gray
+
+                    date_str = cal_data['date_strings'][row][col]
+                    shapes.append(go.layout.Shape(
+                        type="rect",
+                        xref="x", yref="y",
+                        x0=col * step, x1=(col + 1) * step - gap,
+                        y0=row * step, y1=(row + 1) * step - gap,
+                        fillcolor=color,
+                        line=dict(width=0),
+                    ))
+
+            # Hover text via customdata on a transparent scatter trace
+            hover_x = []
+            hover_y = []
+            hover_text = []
+            for row in range(7):
+                for col in range(n_cols):
+                    tokens = cal_data['z'][row][col]
+                    date_str = cal_data['date_strings'][row][col]
+                    if date_str:
+                        hover_x.append(col * step + cell_size / 2)
+                        hover_y.append(row * step + cell_size / 2)
+                        hover_text.append(f'<b>{date_str}</b><br>Tokens: {tokens:,}')
+
             fig = go.Figure(data=[
-                go.Heatmap(
-                    z=cal_data['z'],
-                    x=list(range(n_cols)),  # numeric indices: 0, 1, 2, ... avoids category-axis collapse
-                    y=cal_data['y'],
-                    colorscale=[
-                        [0, '#ebedf0'],
-                        [0.05, '#b6e2b4'],
-                        [0.15, '#9be9a8'],
-                        [0.3, '#40c463'],
-                        [0.6, '#30a14e'],
-                        [1, '#216e39']
-                    ],
-                    zmin=0,
-                    zmax=100_000,
-                    xgap=2,
-                    ygap=2,
-                    text=cal_data['date_strings'],
-                    hovertemplate='<b>%{text}</b><br>Tokens: %{z:,}<extra></extra>',
+                go.Scatter(
+                    x=hover_x, y=hover_y,
+                    mode='markers',
+                    marker=dict(size=1, opacity=0),  # invisible markers for hover
+                    text=hover_text,
+                    hovertemplate='%{text}<extra></extra>',
+                    showlegend=False,
                 ),
             ])
-
-            # White grid lines at cell boundaries (layer: above traces so they show over colored cells)
-            grid_shapes = []
-            # Vertical lines between columns (at x = i + 0.5 for i in 1..n_cols-1)
-            for i in range(1, n_cols):
-                grid_shapes.append(go.layout.Shape(
-                    type="rect",
-                    xref="x", yref="y",
-                    x0=i - 0.4, x1=i + 0.4,
-                    y0=-0.7, y1=7.7,
-                    fillcolor="#ffffff",
-                    line=dict(width=0),
-                    layer="above",
-                ))
-            # Horizontal lines between rows (at y = i + 0.5 for i in 1..6)
-            for i in range(1, 7):
-                grid_shapes.append(go.layout.Shape(
-                    type="rect",
-                    xref="x", yref="y",
-                    x0=-0.7, x1=n_cols - 0.3,
-                    y0=i - 0.4, y1=i + 0.4,
-                    fillcolor="#ffffff",
-                    line=dict(width=0),
-                    layer="above",
-                ))
-            fig.update_layout(shapes=grid_shapes)
-
+            fig.update_layout(shapes=shapes)
             fig.update_layout(
                 xaxis_title="",
                 yaxis_title="",
@@ -398,14 +408,21 @@ def server(input, output, session):
 
             fig.update_xaxes(
                 type='linear',
-                tickvals=cal_data['tickvals'],
-                ticktext=cal_data['ticktext'],
+                range=[-gap, n_cols * step],
+                tickvals=[col * step + cell_size / 2 for col in cal_data.get('tickvals', [])],
+                ticktext=cal_data.get('ticktext', []),
                 tickangle=-15,
                 side='top',
-                dtick=1,  # show grid lines at every column
+                showgrid=False,
             )
-            # Force square cells: y-axis units match x-axis units in pixels
-            fig.update_yaxes(scaleanchor="x", scaleratio=1)
+            fig.update_yaxes(
+                range=[-gap, 7 * step],
+                dtick=step,
+                tickvals=[row * step + cell_size / 2 for row in range(7)],
+                ticktext=['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+                tickangle=0,
+                showgrid=False,
+            )
             return fig
 
         agg_top5 = data.copy()

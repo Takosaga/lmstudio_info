@@ -28,10 +28,12 @@ def test_build_calendar_data_basic():
     assert result is not None
     assert isinstance(result, dict)
     assert 'z' in result
-    assert 'x' in result
+    assert 'tickvals' in result
+    assert 'ticktext' in result
     assert 'y' in result
     assert result['y'] == ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
     assert len(result['z']) == 7  # 7 rows for days of week
+    assert len(result['tickvals']) > 0  # month boundaries
 
 
 def test_build_calendar_data_zero_fill():
@@ -250,9 +252,9 @@ def test_calendar_with_real_db():
     cal_data = _build_calendar_data(df)
 
     assert len(cal_data['y']) == 7, "Should have 7 day-of-week rows"
-    assert len(cal_data['x']) > 0, "Should have at least one week column"
     assert len(cal_data['z']) == 7, "Z matrix should have 7 rows"
     assert 'date_strings' in cal_data, "Date strings matrix should be present"
+    assert len(cal_data['tickvals']) > 0, "Should have month tick boundaries"
 
 
 def test_usage_chart_calendar_hover():
@@ -273,9 +275,10 @@ def test_usage_chart_calendar_hover():
     assert 'date_strings' in cal_data
 
     # Verify that text is passed correctly to Plotly Heatmap for hover
+    n_cols = len(cal_data['z'][0])
     fig = go.Figure(go.Heatmap(
         z=cal_data['z'],
-        x=cal_data['x'],
+        x=list(range(n_cols)),  # numeric indices, not empty-string labels
         y=cal_data['y'],
         colorscale=[
             [0, '#ebedf0'],
@@ -292,27 +295,9 @@ def test_usage_chart_calendar_hover():
     assert fig.data[0].text is not None
     text = fig.data[0].text
     if hasattr(text, 'shape'):
-        assert text.shape == (7, len(cal_data['x']))
+        assert text.shape == (7, n_cols)
     else:
-        assert len(text) == 7 and all(len(row) == len(cal_data['x']) for row in text)
-
-
-def test_calendar_with_real_db():
-    """Test calendar heatmap builds from actual database."""
-    from app import _build_calendar_data
-    from data_loader import load_unified_data
-
-    db_path = str(Path(__file__).parent.parent / "data" / "lmstudio_usage.db")
-
-    df = load_unified_data(db_path)
-
-    assert df is not None and not df.empty
-
-    cal_data = _build_calendar_data(df)
-
-    assert len(cal_data['y']) == 7, "Should have 7 day-of-week rows"
-    assert len(cal_data['x']) > 0, "Should have at least one week column"
-    assert len(cal_data['z']) == 7, "Z matrix should have 7 rows"
+        assert len(text) == 7 and all(len(row) == n_cols for row in text)
 
 
 def test_calendar_time_filter():
