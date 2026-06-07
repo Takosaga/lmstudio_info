@@ -3,6 +3,7 @@
 import sys
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -348,15 +349,14 @@ def test_compute_calendar_colors_two_values():
     """Two distinct values should split into two color buckets."""
     from app import _compute_calendar_colors
     z = np.zeros((7, 8), dtype=int)
-    z_flat = z.flatten()
     for i in range(20):
-        z_flat[i] = 1_000_000   # low
+        z.flat[i] = 1_000_000   # low
     for i in range(20, 40):
-        z_flat[i] = 50_000_000  # high
+        z.flat[i] = 50_000_000  # high
     colors = _compute_calendar_colors(z)
     # Low values should be lighter than high values
-    low_colors = set(colors.flatten()[:20])
-    high_colors = set(colors.flatten()[20:40])
+    low_colors = set(colors.flat[:20])
+    high_colors = set(colors.flat[20:40])
     assert len(low_colors) > 0
     assert len(high_colors) > 0
     # The darkest color (#216e39) should appear in high bucket
@@ -367,15 +367,14 @@ def test_compute_calendar_colors_five_buckets_populated():
     """Wide data range should populate all 5 non-zero color buckets."""
     from app import _compute_calendar_colors
     z = np.zeros((7, 8), dtype=int)
-    z_flat = z.flatten()
     # Distribute values across 5 percentiles
     values = [2_000_000, 10_000_000, 20_000_000, 30_000_000, 48_000_000]
     for i, v in enumerate(values):
         start = i * 10
         end = (i + 1) * 10
-        z_flat[start:end] = v
+        z.flat[start:end] = v
     colors = _compute_calendar_colors(z)
-    non_gray = set(c for c in colors.flatten() if c != '#ebedf0')
+    non_gray = set(c for c in colors.flat if c != '#ebedf0')
     assert len(non_gray) == 5, f"Expected 5 distinct green shades, got {len(non_gray)}: {non_gray}"
 
 

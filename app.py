@@ -141,6 +141,34 @@ def _build_calendar_data(data: pd.DataFrame) -> dict:
     }
 
 
+def _compute_calendar_colors(z: np.ndarray) -> np.ndarray:
+    """Compute GitHub-style green colors from a token-count matrix using percentile thresholds.
+
+    Args:
+        z: 2D numpy array of token counts (7 rows x N columns).
+
+    Returns:
+        2D numpy array of the same shape with hex color strings.
+    """
+    palette = ['#ebedf0', '#b6e2b4', '#9be9a8', '#40c463', '#30a14e', '#2ea44f', '#216e39']
+
+    # Flatten to 1D for percentile computation
+    flat = z.flatten()
+    non_zero = flat[flat > 0]
+
+    if len(non_zero) == 0:
+        return np.full(z.shape, palette[0], dtype=object)
+
+    p10, p25, p50, p75, p90 = np.percentile(non_zero, [10, 25, 50, 75, 90])
+
+    colors = np.select(
+        [flat == 0, flat < p10, flat < p25, flat < p50, flat < p75, flat < p90],
+        [palette[0], palette[1], palette[2], palette[3], palette[4], palette[5]],
+        default=palette[6],
+    )
+    return colors.reshape(z.shape)
+
+
 def _build_calendar_figure(cal_data: dict) -> go.Figure | None:
     """Build a Plotly Figure for the GitHub-style calendar heatmap.
 
@@ -160,14 +188,9 @@ def _build_calendar_figure(cal_data: dict) -> go.Figure | None:
     width = n_cols * step + margin_l + margin_r - gap
     height = 7 * step + margin_t + margin_b - gap
 
-    # Vectorized color computation via numpy (replaces Python if/else loop)
+    # Vectorized color computation via percentile-based thresholds
     z = np.array(cal_data['z'])
-    pct = np.minimum(z / 100_000, 1.0)
-    colors = np.select(
-        [z == 0, pct < 0.05, pct < 0.15, pct < 0.30, pct < 0.50, pct < 0.75],
-        ['#ebedf0', '#b6e2b4', '#9be9a8', '#40c463', '#30a14e', '#2ea44f'],
-        default='#216e39'
-    )
+    colors = _compute_calendar_colors(z)
 
     # Build shapes: one rect per cell (gray for zeros, green for non-zero)
     shapes = []
