@@ -13,14 +13,12 @@
 ## Task 1: Add tests for percentile color computation
 
 **Files:**
-- Create: `tests/test_calendar_colors.py`
+- Modify: `tests/test_calendar_heatmap.py` — append color-computation tests at end
 - Modify: `app.py` (later tasks)
 
-- [ ] **Step 1: Write test file with failing imports**
+- [ ] **Step 1: Append color-computation tests to existing test file**
 
-Create `tests/test_calendar_colors.py`:
-
-```python
+Append the following to the end of `tests/test_calendar_heatmap.py`:
 """Tests for calendar heatmap color computation."""
 import numpy as np
 import pytest
@@ -92,15 +90,15 @@ class TestComputeCalendarColors:
 
 - [ ] **Step 2: Run tests to verify they fail**
 
-Run: `cd /home/takosaga/Projects/lmstudio_info && python -m pytest tests/test_calendar_colors.py -v`
+Run: `cd /home/takosaga/Projects/lmstudio_info && python -m pytest tests/test_calendar_heatmap.py -v -k "color"`
 
 Expected: FAIL with `ImportError` — `_compute_calendar_colors` does not exist yet.
 
-- [ ] **Step 3: Commit test file**
+- [ ] **Step 3: Commit test additions**
 
 ```bash
 cd /home/takosaga/Projects/lmstudio_info
-git add tests/test_calendar_colors.py
+git add tests/test_calendar_heatmap.py
 git commit -m "test: add percentile color computation tests"
 ```
 
@@ -171,15 +169,15 @@ With:
 
 - [ ] **Step 3: Run tests to verify they pass**
 
-Run: `cd /home/takosaga/Projects/lmstudio_info && python -m pytest tests/test_calendar_colors.py -v`
+Run: `cd /home/takosaga/Projects/lmstudio_info && python -m pytest tests/test_calendar_heatmap.py -v -k "color"`
 
-Expected: All 5 tests PASS.
+Expected: All 5 new color tests PASS, all existing calendar tests still PASS.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 cd /home/takosaga/Projects/lmstudio_info
-git add app.py tests/test_calendar_colors.py
+git add app.py tests/test_calendar_heatmap.py
 git commit -m "feat: percentile-based calendar heatmap color scaling"
 ```
 
