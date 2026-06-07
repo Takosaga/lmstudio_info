@@ -323,3 +323,66 @@ def test_calendar_time_filter():
     # all cells correspond to dates >= cutoff.
     assert len(cal_data['z']) == 7  # 7 rows
     assert len(cal_data['z'][0]) > 0  # At least one week column
+
+
+def test_compute_calendar_colors_all_zeros():
+    """All-zero matrix should produce lightest gray for every cell."""
+    from app import _compute_calendar_colors
+    z = np.zeros((7, 8), dtype=int)
+    colors = _compute_calendar_colors(z)
+    expected = ['#ebedf0'] * 56
+    assert list(colors.flatten()) == expected
+
+
+def test_compute_calendar_colors_uniform_nonzero():
+    """All identical non-zero values should all get darkest green."""
+    from app import _compute_calendar_colors
+    z = np.full((7, 8), 1_000_000, dtype=int)
+    colors = _compute_calendar_colors(z)
+    # With a single unique value, p10=p25=...=p90=value, so all >= p90
+    expected = ['#216e39'] * 56
+    assert list(colors.flatten()) == expected
+
+
+def test_compute_calendar_colors_two_values():
+    """Two distinct values should split into two color buckets."""
+    from app import _compute_calendar_colors
+    z = np.zeros((7, 8), dtype=int)
+    z_flat = z.flatten()
+    for i in range(20):
+        z_flat[i] = 1_000_000   # low
+    for i in range(20, 40):
+        z_flat[i] = 50_000_000  # high
+    colors = _compute_calendar_colors(z)
+    # Low values should be lighter than high values
+    low_colors = set(colors.flatten()[:20])
+    high_colors = set(colors.flatten()[20:40])
+    assert len(low_colors) > 0
+    assert len(high_colors) > 0
+    # The darkest color (#216e39) should appear in high bucket
+    assert '#216e39' in high_colors or list(high_colors)[0] != list(low_colors)[0]
+
+
+def test_compute_calendar_colors_five_buckets_populated():
+    """Wide data range should populate all 5 non-zero color buckets."""
+    from app import _compute_calendar_colors
+    z = np.zeros((7, 8), dtype=int)
+    z_flat = z.flatten()
+    # Distribute values across 5 percentiles
+    values = [2_000_000, 10_000_000, 20_000_000, 30_000_000, 48_000_000]
+    for i, v in enumerate(values):
+        start = i * 10
+        end = (i + 1) * 10
+        z_flat[start:end] = v
+    colors = _compute_calendar_colors(z)
+    non_gray = set(c for c in colors.flatten() if c != '#ebedf0')
+    assert len(non_gray) == 5, f"Expected 5 distinct green shades, got {len(non_gray)}: {non_gray}"
+
+
+def test_compute_calendar_colors_single_active_day():
+    """One active day should get darkest green; rest gray."""
+    from app import _compute_calendar_colors
+    z = np.zeros((7, 8), dtype=int)
+    z[0, 0] = 5_000_000
+    colors = _compute_calendar_colors(z)
+    assert colors[0, 0] == '#216e39'
