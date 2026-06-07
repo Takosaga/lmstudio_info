@@ -497,7 +497,7 @@ def server(input, output, session):
                 color='token_type',
                 color_discrete_map=dict(zip(type_order, palette)),
                 barmode='stack',
-                labels={'_time': 'Time', 'token_count': 'Tokens', 'token_type': 'Token Type'},
+                labels={'_time': 'Time', 'token_count': 'Total Tokens (log scale)', 'token_type': 'Token Type'},
                 category_orders={
                     'token_type': type_order,
                     '_time_label': agg_melted.drop_duplicates('_time')['_time_label'].tolist(),
@@ -515,6 +515,7 @@ def server(input, output, session):
                 hovertemplate="<b>%{customdata[0]}</b><br>Tokens: %{customdata[1]:,}<br>Period share: %{customdata[2]}<extra></extra>",
                 textposition="inside",
             )
+            fig.update_layout(yaxis=dict(type='log'))
             legend_title = "Top 5 Token Types"
         else:
             # === MODEL-BASED CHART LOGIC ===
