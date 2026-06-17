@@ -5,6 +5,7 @@ scanning JSON files (opencode_tokens.py). Upserts into lmstudio_usage.db
 via lmstudio_db.upsert_conversation().
 """
 import json
+import re
 import sqlite3
 import logging
 from datetime import datetime, timezone
@@ -82,10 +83,9 @@ def _row_to_conversation(row, tool_call_counts: dict | None = None):
 
     # Extract model — assistant messages have top-level modelID
     model_name = data_json.get("modelID") or ""
-    # Strip opencode-specific provider prefixes (e.g. unsloth/) to normalize
+    # Strip any provider prefix (e.g. unsloth/, qwen/, liquid/) to normalize
     # against LMStudio and pi model names which don't include those providers.
-    if model_name.startswith("unsloth/"):
-        model_name = model_name[len("unsloth/"):]
+    model_name = re.sub(r"^[a-zA-Z][a-zA-Z0-9_-]+/", "", model_name)
     if not model_name:
         logger.warning(f"Skipping message {msg_id}: no modelID found")
         return None

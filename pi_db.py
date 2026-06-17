@@ -7,6 +7,7 @@ Mirrors the opencode_db.py pattern.
 import glob
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -90,6 +91,10 @@ def _msg_to_conversation(line):
     ts_str = line.get("timestamp")
     created_at = _parse_timestamp(ts_str)
 
+    # Normalize model name — strip any provider prefix for cross-source merging
+    model_name = (message.get("model") or "")
+    model_name = re.sub(r"^[a-zA-Z][a-zA-Z0-9_-]+/", "", model_name)
+
     msg_id = message.get("id", "")
     if ts_str:
         safe_ts = ts_str.replace(":", "-").replace(".", "_")
@@ -101,7 +106,7 @@ def _msg_to_conversation(line):
         "filename": filename,
         "token_count": total_tokens,
         "message_count": 1,
-        "model": message.get("model", "") or "",
+        "model": model_name,
         "created_at": created_at,
         "user_last_message_at": created_at,
         "source": "pi",

@@ -1,6 +1,7 @@
-import json
 import glob
+import json
 import os
+import re
 from pathlib import Path
 from datetime import datetime, timezone
 
@@ -31,6 +32,9 @@ def extract_from_json(file_path):
     messages_list = chat_data.get('messages', []) if isinstance(chat_data, dict) else []
     last_used_model = chat_data.get('lastUsedModel')
     model_name = last_used_model.get('identifier', '') if isinstance(last_used_model, dict) else last_used_model or ''
+    # Strip provider/community prefixes (e.g. lmstudio-community/, qwen/) to normalize
+    # across sources so the same model merges correctly.
+    model_name = re.sub(r'^[a-zA-Z][a-zA-Z0-9_-]+/', '', model_name)
     created_at_ts = chat_data.get('createdAt')
     user_last_message_at_ts = chat_data.get('userLastMessagedAt')
 
