@@ -82,6 +82,10 @@ def _row_to_conversation(row, tool_call_counts: dict | None = None):
 
     # Extract model — assistant messages have top-level modelID
     model_name = data_json.get("modelID") or ""
+    # Strip opencode-specific provider prefixes (e.g. unsloth/) to normalize
+    # against LMStudio and pi model names which don't include those providers.
+    if model_name.startswith("unsloth/"):
+        model_name = model_name[len("unsloth/"):]
     if not model_name:
         logger.warning(f"Skipping message {msg_id}: no modelID found")
         return None
