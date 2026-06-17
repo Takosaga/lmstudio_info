@@ -228,8 +228,10 @@ def upsert_conversation(db_path, conversation_data):
             existing_cache = existing[7] if existing else None
             existing_tool_call = existing[8] if existing else None
 
+            new_model = conversation_data.get('model', '')
             if (existing and new_token_count == existing[0]
                     and new_message_count == existing[1]
+                    and new_model == (existing[2] if existing else '')
                     and new_input_tokens == existing_input
                     and new_output_tokens == existing_output
                     and new_reasoning_tokens == existing_reasoning

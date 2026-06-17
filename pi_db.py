@@ -101,7 +101,7 @@ def _msg_to_conversation(line):
         "filename": filename,
         "token_count": total_tokens,
         "message_count": 1,
-        "model": message.get("modelId", "") or "",
+        "model": message.get("model", "") or "",
         "created_at": created_at,
         "user_last_message_at": created_at,
         "source": "pi",
