@@ -235,7 +235,7 @@ def test_row_to_conversation_all_token_types():
 
     assert conv is not None
     assert conv["filename"] == "20260624_194845_f20214"
-    assert conv["model"] == "qwen3.5-9b-mtp@q4_k_xl"
+    assert conv["model"] == "qwen3.5-9b-mtp"
     assert conv["source"] == "hermes"
     assert conv["input_tokens"] == 316542
     assert conv["output_tokens"] == 2067

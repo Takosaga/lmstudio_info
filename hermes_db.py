@@ -77,8 +77,9 @@ def _row_to_conversation(row):
     if total_tokens == 0:
         return None
 
-    # Normalize model name — strip provider/community prefix for cross-source merging
+    # Normalize model name — strip provider/community prefix and quantization suffix for cross-source merging
     model_name = re.sub(r"^[a-zA-Z][a-zA-Z0-9_-]+/", "", model_name)
+    model_name = re.sub(r"@q[0-9]_?[kx]?\w*", "", model_name)
 
     created_at = _parse_timestamp(started_at)
     user_last_message_at = _parse_timestamp(ended_at)
