@@ -47,7 +47,14 @@ def _load_all_sources():
     except Exception:
         pass  # Skip Pi sync if sessions directory doesn't exist
 
-    # 4. Load unified data from DB
+    # 4. Sync Hermes sessions from state.db
+    try:
+        import hermes_db
+        hermes_db.sync_hermes_tokens()
+    except Exception:
+        pass  # Skip Hermes sync if path doesn't exist
+
+    # 5. Load unified data from DB
     from data_loader import load_unified_data
     try:
         df = load_unified_data(str(_DB_PATH))
