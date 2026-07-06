@@ -20,11 +20,10 @@
 }
 
 .chart-column {
-    flex: 3.5;  /* Slightly increased from 2.5 to give more width */
-    min-width: 200px;
-    max-height: 300px;  /* Same as cards, but smaller */
-    display: flex;
-    align-items: center;
+    flex: 4;  /* More width for donut */
+    min-width: 250px;
+    max-height: 300px;  /* Same as cards */
+    /* Remove flex centering to let widget fill naturally */
 }
 
 /* Center plotly charts in their containers */

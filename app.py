@@ -324,10 +324,7 @@ app_ui = ui.page_sidebar(
         ),
         # Right column: donut chart
         ui.div(
-            ui.card(
-                ui.card_header("Token Type Breakdown"),
-                output_widget("donut_chart"),
-            ),
+            output_widget("donut_chart"),
             class_="chart-column",
         ),
         class_="dashboard-container",
@@ -663,14 +660,14 @@ def server(input, output, session):
                 'Input Tokens': '#457b9d',
                 'Output Tokens': '#e63946'
             },
-            hole=0.3  # Reduced from 0.4 for better visibility in smaller space
+            hole=0.3
         )
         
-        # Set explicit dimensions to fit container
+        # Set fixed dimensions to match container (250x300)
         fig.update_layout(
-            width=250,
-            height=280,  # Slightly less than container max-height (300px)
-            margin=dict(l=10, r=10, t=20, b=10),
+            width=280,
+            height=300,
+            margin=dict(l=10, r=10, t=10, b=10),
             font=dict(size=12)
         )
         
