@@ -296,41 +296,41 @@ app_ui = ui.page_sidebar(
         ui.card_header("Token Usage Over Time"),
         output_widget("usage_chart"),
     ),
-    # KPI Cards - centered
-    ui.row(
-        ui.column(
-            3,
+    # KPI Cards + Donut Chart layout
+    ui.div(
+        # Left column: 2x2 grid of cards
+        ui.div(
             ui.card(
                 ui.output_text_verbatim("total_tokens_header"),
                 ui.output_text_verbatim("total_tokens"),
                 class_="text-center",
             ),
-        ),
-        ui.column(
-            3,
             ui.card(
                 ui.output_text_verbatim("avg_header"),
                 ui.output_text_verbatim("avg_value"),
                 class_="text-center",
             ),
-        ),
-        ui.column(
-            3,
             ui.card(
                 ui.output_text_verbatim("top_model_header"),
                 ui.output_text_verbatim("top_model"),
                 class_="text-center",
             ),
-        ),
-        ui.column(
-            3,
             ui.card(
                 ui.output_text_verbatim("total_tool_calls_header"),
                 ui.output_text_verbatim("total_tool_calls"),
                 class_="text-center",
             ),
+            class_="cards-column",
         ),
-        class_="justify-content-center mb-4 kpi-row",
+        # Right column: donut chart
+        ui.div(
+            ui.card(
+                ui.card_header("Token Type Breakdown"),
+                output_widget("donut_chart"),
+            ),
+            class_="chart-column",
+        ),
+        class_="dashboard-container",
     ),
     # Calendar Heatmap — full year, all sources, larger
     ui.card(
@@ -382,6 +382,26 @@ def server(input, output, session):
         if df is None or df.empty:
             return None
         return _build_calendar_data(df)
+
+    @reactive.calc
+    def donut_data():
+        """Donut chart data: aggregated token counts by type (input/output) for filtered period."""
+        data = filtered_data()
+        if data is None or data.empty:
+            return {}
+        
+        # Select the token type columns
+        token_cols = ['input_tokens', 'output_tokens']
+        data[token_cols] = data[token_cols].fillna(0)
+        
+        # Sum by token type
+        totals = data[token_cols].sum()
+        
+        # Convert to dictionary with friendly names
+        return {
+            'Input Tokens': totals.get('input_tokens', 0),
+            'Output Tokens': totals.get('output_tokens', 0)
+        }
 
     @output
     @render.text
@@ -625,6 +645,41 @@ def server(input, output, session):
             ),
         )
         fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="LightGray")
+        return fig
+
+    @output
+    @render_plotly()
+    def donut_chart():
+        """Donut chart showing token type breakdown."""
+        data = donut_data()
+        if not data or sum(data.values()) == 0:
+            return None
+        
+        # Create donut chart
+        fig = px.donut(
+            data, 
+            values=list(data.values()), 
+            names=list(data.keys()),
+            color_discrete_map={
+                'Input Tokens': '#457b9d',
+                'Output Tokens': '#e63946'
+            },
+            hole=0.4
+        )
+        
+        # Update layout
+        fig.update_layout(
+            margin=dict(l=20, r=20, t=40, b=20),
+            legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
+            font=dict(size=12)
+        )
+        
+        # Configure hover template
+        total = sum(data.values())
+        fig.update_traces(
+            hovertemplate="%{label}: %{value:,} (%{percent})<extra></extra>"
+        )
+        
         return fig
 
     # Dynamic filter visibility based on time_period selection

@@ -3,6 +3,26 @@
     justify-content: center;
 }
 
+/* Dashboard container with cards grid and donut chart */
+.dashboard-container {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    align-items: stretch;
+}
+
+.cards-column {
+    flex: 6;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.chart-column {
+    flex: 4;
+    min-width: 300px;
+}
+
 /* Center plotly charts in their containers */
 .js-plotly-plot {
     margin-left: auto !important;
