@@ -655,9 +655,8 @@ def server(input, output, session):
         if not data or sum(data.values()) == 0:
             return None
         
-        # Create donut chart
-        fig = px.donut(
-            data, 
+        # Create donut chart using px.pie with hole parameter
+        fig = px.pie(
             values=list(data.values()), 
             names=list(data.keys()),
             color_discrete_map={
