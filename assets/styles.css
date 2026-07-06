@@ -7,20 +7,25 @@
 .dashboard-container {
     display: flex;
     gap: 10px;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     align-items: stretch;
+}
+
+.cards-column,
+.chart-column {
+    max-height: 280px; /* Reduced from default */
 }
 
 .cards-column {
     flex: 6;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 8px; /* Reduced from 10px */
 }
 
 .chart-column {
     flex: 3;
-    min-width: 200px;
+    min-width: 180px;
 }
 
 /* Center plotly charts in their containers */
