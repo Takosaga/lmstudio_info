@@ -273,13 +273,6 @@ app_ui = ui.page_sidebar(
             selected="Monthly",
         ),
         ui.input_radio_buttons(
-            "breakdown_by",
-            "Breakdown by",
-            choices={"model": "Model", "token_type": "Token Type"},
-            selected="model",
-            inline=True,
-        ),
-        ui.input_radio_buttons(
             "time_range",
             "Time Range",
             choices={
@@ -296,41 +289,38 @@ app_ui = ui.page_sidebar(
         ui.card_header("Token Usage Over Time"),
         output_widget("usage_chart"),
     ),
-    # KPI Cards - centered
-    ui.row(
-        ui.column(
-            3,
+    # KPI Cards + Donut Chart layout
+    ui.div(
+        # Left column: 2x2 grid of cards
+        ui.div(
             ui.card(
                 ui.output_text_verbatim("total_tokens_header"),
                 ui.output_text_verbatim("total_tokens"),
                 class_="text-center",
             ),
-        ),
-        ui.column(
-            3,
             ui.card(
                 ui.output_text_verbatim("avg_header"),
                 ui.output_text_verbatim("avg_value"),
                 class_="text-center",
             ),
-        ),
-        ui.column(
-            3,
             ui.card(
                 ui.output_text_verbatim("top_model_header"),
                 ui.output_text_verbatim("top_model"),
                 class_="text-center",
             ),
-        ),
-        ui.column(
-            3,
             ui.card(
                 ui.output_text_verbatim("total_tool_calls_header"),
                 ui.output_text_verbatim("total_tool_calls"),
                 class_="text-center",
             ),
+            class_="cards-column",
         ),
-        class_="justify-content-center mb-4 kpi-row",
+        # Right column: donut chart
+        ui.div(
+            output_widget("donut_chart"),
+            class_="chart-column",
+        ),
+        class_="dashboard-container",
     ),
     # Calendar Heatmap — full year, all sources, larger
     ui.card(
@@ -382,6 +372,26 @@ def server(input, output, session):
         if df is None or df.empty:
             return None
         return _build_calendar_data(df)
+
+    @reactive.calc
+    def donut_data():
+        """Donut chart data: aggregated token counts by type (input/output) for filtered period."""
+        data = filtered_data()
+        if data is None or data.empty:
+            return {}
+        
+        # Select the token type columns
+        token_cols = ['input_tokens', 'output_tokens']
+        data[token_cols] = data[token_cols].fillna(0)
+        
+        # Sum by token type
+        totals = data[token_cols].sum()
+        
+        # Convert to dictionary with friendly names
+        return {
+            'Input Tokens': totals.get('input_tokens', 0),
+            'Output Tokens': totals.get('output_tokens', 0)
+        }
 
     @output
     @render.text
@@ -463,151 +473,84 @@ def server(input, output, session):
     @output
     @render_plotly()
     def usage_chart():
+        """Token usage over time - model based stacked bar chart."""
         data = filtered_data()
         if data is None or data.empty:
             return None
 
-        agg_top5 = data.copy()
-
-        top_5_models = (
-            agg_top5.groupby("model")["token_count"]
-            .sum()
-            .nlargest(5)
-            .index.tolist()
-        )
-        agg_top5 = agg_top5[agg_top5["model"].isin(top_5_models)].copy()
-
         gran = input.time_period()
         if gran == "Monthly":
-            agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.to_period("M")
+            data["_time"] = pd.to_datetime(data["created_at"]).dt.to_period("M")
         else:
-            agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.date
+            data["_time"] = pd.to_datetime(data["created_at"]).dt.date
 
-        # Determine grouping column based on breakdown toggle
-        if input.breakdown_by() == "token_type":
-            # Pivot token type columns into long format for stacking
-            token_cols = ['input_tokens', 'output_tokens']
-            agg_top5[token_cols] = agg_top5[token_cols].fillna(0)
-            agg = agg_top5.groupby("_time")[token_cols].sum().reset_index()
-            agg_melted = agg.melt(id_vars=['_time'], value_vars=token_cols,
-                                   var_name='token_type', value_name='token_count')
-            agg_melted['_time_label'] = agg_melted['_time'].apply(
-                lambda x: x.strftime("%m/%d") if (hasattr(x, 'strftime') and gran == "Daily") else x.strftime("%b %Y") if hasattr(x, 'strftime') else str(x)
-            )
-            # Format token type names for display
-            agg_melted['token_type'] = agg_melted['token_type'].map({
-                'input_tokens': 'Input Tokens',
-                'output_tokens': 'Output Tokens',
-            })
+        # Compute model totals from full filtered period
+        model_totals = data.groupby("model")["token_count"].sum()
 
-            # Determine displayed token types (those with non-zero counts)
-            displayed_types = agg_melted['token_type'].unique().tolist()
-            if not displayed_types:
-                return None
+        # Filter by 10M token threshold, fallback to top 5 if none
+        displayed_models = model_totals[model_totals >= 10_000_000].index.tolist()
+        if not displayed_models:
+            displayed_models = model_totals.nlargest(5).index.tolist()
 
-            # Order consistently
-            type_order = ['Input Tokens', 'Output Tokens']
-            type_order = [t for t in type_order if t in displayed_types]
+        # Filter data to only selected models
+        agg_top5 = data[data["model"].isin(displayed_models)].copy()
 
-            agg_melted['type_order'] = agg_melted['token_type'].map({t: i for i, t in enumerate(type_order)})
+        # Guard against NaN in token_count after groupby
+        agg = agg_top5.groupby(["_time", "model"])["token_count"].sum().reset_index()
+        if agg.empty:
+            return None
 
-            palette = ['#457b9d', '#e63946']
-            palette = palette[:len(type_order)]
+        agg["token_count"] = agg["token_count"].fillna(0)
 
-            def _safe_pct(x):
-                s = x.sum()
-                return (x / s * 100).round(1) if s > 0 else 0.0
-
-            agg_melted['_pct'] = agg_melted.groupby('_time')['token_count'].transform(_safe_pct).fillna(0)
-
-            fig = px.bar(
-                agg_melted,
-                x='_time_label',
-                y='token_count',
-                color='token_type',
-                color_discrete_map=dict(zip(type_order, palette)),
-                barmode='stack',
-                labels={'_time': 'Time', 'token_count': 'Total Tokens (log scale)', 'token_type': 'Token Type'},
-                category_orders={
-                    'token_type': type_order,
-                    '_time_label': agg_melted.drop_duplicates('_time')['_time_label'].tolist(),
-                },
-                text=agg_melted['token_count'].apply(lambda x: f"{x:,}" if pd.notna(x) and x > 100 else ""),
-                hover_data={
-                    'token_type': True,
-                    'token_count': True,
-                    '_pct': ':.1f%%',
-                    '_time_label': True,
-                },
-                custom_data=['token_type', 'token_count', '_pct'],
-            )
-            fig.update_traces(
-                hovertemplate="<b>%{customdata[0]}</b><br>Tokens: %{customdata[1]:,}<br>Period share: %{customdata[2]}<extra></extra>",
-                textposition="inside",
-            )
-            fig.update_layout(yaxis=dict(type='log'))
-            legend_title = "Top 5 Token Types"
+        # Format time labels for display
+        if gran == "Monthly":
+            agg["_time_label"] = agg["_time"].dt.strftime("%b %Y")
         else:
-            # === MODEL-BASED CHART LOGIC ===
-            agg = agg_top5.groupby(["_time", "model"])["token_count"].sum().reset_index()
-            if agg.empty:
-                return None
+            agg["_time_label"] = agg["_time"].astype(str)
 
-            # Guard against NaN in token_count after groupby
-            agg["token_count"] = agg["token_count"].fillna(0)
+        # Order models consistently (largest first)
+        model_order = {m: i for i, m in enumerate(displayed_models)}
+        agg["model_order"] = agg["model"].map(model_order)
 
-            # Format time labels for display
-            if gran == "Monthly":
-                agg["_time_label"] = agg["_time"].dt.strftime("%b %Y")
-            else:
-                agg["_time_label"] = agg["_time"].astype(str)
+        # Distinct color palette
+        palette = ["#2ec4b6", "#e16462", "#65a000", "#ff7f0e", "#7c3aed"]
+        palette = palette[:len(displayed_models)]
 
-            # Determine top 5 models from filtered data
-            displayed_models = list(agg.groupby("model")["token_count"].sum().nlargest(5).index)
+        # Compute percentages for tooltips (guard against div by zero)
+        period_totals = agg.groupby("_time")["token_count"].transform("sum")
+        agg["_pct"] = (agg["token_count"] / period_totals * 100).round(1).fillna(0)
 
-            # Order models consistently (largest first)
-            model_order = {m: i for i, m in enumerate(displayed_models)}
-            agg["model_order"] = agg["model"].map(model_order)
+        # Plotly stacked bar with hover tooltips
+        fig = px.bar(
+            agg,
+            x="_time_label",
+            y="token_count",
+            color="model",
+            color_discrete_map=dict(zip(displayed_models, palette)),
+            barmode="stack",
+            labels={"_time": "Time", "token_count": "Tokens", "model": "Model", "_time_label": ""},
+            category_orders={
+                "model": [m for m, _ in sorted(model_order.items(), key=lambda x: x[1])],
+                "_time_label": agg.drop_duplicates("_time")["_time_label"].tolist(),
+            },
+            text=agg["token_count"].apply(lambda x: f"{x:,}" if pd.notna(x) and x > 100 else ""),
+            hover_data={
+                "model": True,
+                "token_count": True,
+                "_pct": ":.1f%%",
+            },
+            custom_data=["model", "token_count", "_pct"],
+        )
+        fig.update_traces(
+            hovertemplate="<b>%{customdata[0]}</b><br>Tokens: %{customdata[1]:,}<br>Period share: %{customdata[2]}<extra></extra>",
+            textposition="inside",
+        )
 
-            # Distinct color palette
-            palette = ["#2ec4b6", "#e16462", "#65a000", "#ff7f0e", "#7c3aed"]
-            palette = palette[:len(displayed_models)]
+        # Dynamic legend title
+        legend_title = f"Top {len(displayed_models)} Models" if len(displayed_models) != 5 else "Top 5 Models"
 
-            # Compute percentages for tooltips (guard against div by zero)
-            period_totals = agg.groupby("_time")["token_count"].transform("sum")
-            agg["_pct"] = (agg["token_count"] / period_totals * 100).round(1).fillna(0)
-
-            # Plotly stacked bar with hover tooltips
-            fig = px.bar(
-                agg,
-                x="_time_label",
-                y="token_count",
-                color="model",
-                color_discrete_map=dict(zip(displayed_models, palette)),
-                barmode="stack",
-                labels={"_time": "Time", "token_count": "Tokens", "model": "Model"},
-                category_orders={
-                    "model": [m for m, _ in sorted(model_order.items(), key=lambda x: x[1])],
-                    "_time_label": agg.drop_duplicates("_time")["_time_label"].tolist(),
-                },
-                text=agg["token_count"].apply(lambda x: f"{x:,}" if pd.notna(x) and x > 100 else ""),
-                hover_data={
-                    "model": True,
-                    "token_count": True,
-                    "_pct": ":.1f%%",
-                    "_time_label": True,
-                },
-                custom_data=["model", "token_count", "_pct"],
-            )
-            fig.update_traces(
-                hovertemplate="<b>%{customdata[0]}</b><br>Tokens: %{customdata[1]:,}<br>Period share: %{customdata[2]}<extra></extra>",
-                textposition="inside",
-            )
-            # Dynamic legend title
-            legend_title = f"Top {len(displayed_models)} Models" if len(displayed_models) != 5 else "Top 5 Models"
-
+        # Update layout without xaxis title
         fig.update_layout(
-            xaxis_title="Time Period",
             yaxis_title="Total Tokens",
             legend_title=legend_title,
             xaxis_tickangle=-45,
@@ -629,6 +572,41 @@ def server(input, output, session):
         fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor="LightGray")
         return fig
 
+    @output
+    @render_plotly()
+    def donut_chart():
+        """Donut chart showing token type breakdown."""
+        data = donut_data()
+        if not data or sum(data.values()) == 0:
+            return None
+        
+        # Create donut chart using px.pie with hole parameter
+        fig = px.pie(
+            values=list(data.values()), 
+            names=list(data.keys()),
+            color_discrete_map={
+                'Input Tokens': '#457b9d',
+                'Output Tokens': '#e63946'
+            },
+            hole=0.3
+        )
+        
+        # Set fixed dimensions to match container (250x300)
+        fig.update_layout(
+            width=280,
+            height=300,
+            margin=dict(l=10, r=10, t=10, b=10),
+            font=dict(size=12)
+        )
+        
+        # Configure hover template
+        total = sum(data.values())
+        fig.update_traces(
+            hovertemplate="%{label}: %{value:,} (%{percent})<extra></extra>"
+        )
+        
+        return fig
+
     # Dynamic filter visibility based on time_period selection
     @reactive.effect
     def update_time_range_choices():
@@ -636,21 +614,11 @@ def server(input, output, session):
 
         if period == "Daily":
             ui.update_radio_buttons(
-                "breakdown_by",
-                choices={"model": "Model", "token_type": "Token Type"},
-                selected="model",
-            )
-            ui.update_radio_buttons(
                 "time_range",
                 choices={"7": "7 days", "30": "30 days", "90": "90 days"},
                 selected="30",
             )
         else:  # Monthly
-            ui.update_radio_buttons(
-                "breakdown_by",
-                choices={"model": "Model", "token_type": "Token Type"},
-                selected="model",
-            )
             ui.update_radio_buttons(
                 "time_range",
                 choices={

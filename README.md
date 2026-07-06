@@ -1,6 +1,6 @@
 # LMStudio Usage Analytics
 
-Extract, store, and analyze token usage data from LMStudio conversations.
+Extract, store, and analyze token usage data from LMStudio conversations. Visualize usage patterns in a Shiny dashboard with customizable filters.
 
 ## Overview
 
@@ -63,6 +63,26 @@ Load data directly into a DataFrame for analysis:
 
 ```python
 from data_loader import load_usage_data, get_token_statistics, get_connection
+```
+
+### 4. Run the Shiny Dashboard
+
+Launch the interactive dashboard for visual analytics:
+
+```bash
+uv run shiny run app.py
+# Opens at http://127.0.0.1:3000
+```
+
+Dashboard features:
+- **Calendar heatmap** — GitHub-style token usage over time (52 weeks)
+- **Stacked bar chart** — Model or token-type breakdown
+- **KPI cards** — Total tokens, daily average, top model, tool calls
+- **Time filters** — Daily/ monthly granularity, 7/30/90 days or current year
+- **Multi-source** — Aggregates LMStudio, OpenCode, Pi, and Hermes sessions
+
+```python
+from data_loader import load_usage_data, get_token_statistics, get_connection
 
 # Load all conversations as DataFrame
 df = load_usage_data(db_path)
@@ -93,7 +113,11 @@ recent_usage = load_usage_data(
 |--------|---------|---------------|
 | `lmstudio_tokens` | Extract JSON data | `scan_conversations()`, `extract_from_json()`, `load_conversations_from_files()` |
 | `lmstudio_db` | SQLite storage | `init_db()`, `upsert_conversation()`, `get_usage_by_model()` |
-| `data_loader` | Notebook interface | `load_usage_data()`, `get_token_statistics()`, `load_conversations_by_model()` |
+| `opencode_db.py` | Sync OpenCode messages | `sync_opencode_tokens()` |
+| `pi_db.py` | Sync Pi sessions | `sync_pi_tokens()` |
+| `hermes_db.py` | Sync Hermes sessions | `sync_hermes_tokens()` |
+| `data_loader` | Notebook interface | `load_usage_data()`, `load_unified_data()`, `get_token_statistics()` |
+| `app.py` | Shiny dashboard | Web UI at `127.0.0.1:3000` |
 
 ## File Schema
 
@@ -149,6 +173,15 @@ Set the `db_path` parameter explicitly:
 
 ```python
 df = load_usage_data('/your/path/usage.db')
+```
+
+### Dashboard Not Reflecting Database Changes
+
+The Shiny app (`app.py`) loads the database once at startup. After making database changes, restart the dashboard:
+
+```bash
+# Stop the server (Ctrl+C), then run again
+uv run shiny run app.py
 ```
 
 ### Timestamp Format

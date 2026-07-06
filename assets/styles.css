@@ -3,6 +3,29 @@
     justify-content: center;
 }
 
+/* Dashboard container with cards grid and donut chart - Option A: Compact Both */
+.dashboard-container {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+    align-items: stretch;  /* Match heights */
+}
+
+.cards-column {
+    flex: 7;  /* Expanded from 6 */
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    max-height: 300px;  /* Increased from 280px */
+}
+
+.chart-column {
+    flex: 4;  /* More width for donut */
+    min-width: 250px;
+    max-height: 300px;  /* Same as cards */
+    /* Remove flex centering to let widget fill naturally */
+}
+
 /* Center plotly charts in their containers */
 .js-plotly-plot {
     margin-left: auto !important;
