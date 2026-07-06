@@ -467,21 +467,22 @@ def server(input, output, session):
         if data is None or data.empty:
             return None
 
-        agg_top5 = data.copy()
-
-        top_5_models = (
-            agg_top5.groupby("model")["token_count"]
-            .sum()
-            .nlargest(5)
-            .index.tolist()
-        )
-        agg_top5 = agg_top5[agg_top5["model"].isin(top_5_models)].copy()
-
         gran = input.time_period()
         if gran == "Monthly":
-            agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.to_period("M")
+            data["_time"] = pd.to_datetime(data["created_at"]).dt.to_period("M")
         else:
-            agg_top5["_time"] = pd.to_datetime(agg_top5["created_at"]).dt.date
+            data["_time"] = pd.to_datetime(data["created_at"]).dt.date
+
+        # Compute model totals from full filtered period (before any filtering)
+        model_totals = data.groupby("model")["token_count"].sum()
+
+        # Filter by 10M token threshold, fallback to top 5 if none
+        displayed_models = model_totals[model_totals >= 10_000_000].index.tolist()
+        if not displayed_models:
+            displayed_models = model_totals.nlargest(5).index.tolist()
+
+        # Filter data to only selected models for both branches
+        agg_top5 = data[data["model"].isin(displayed_models)].copy()
 
         # Determine grouping column based on breakdown toggle
         if input.breakdown_by() == "token_type":
@@ -561,9 +562,6 @@ def server(input, output, session):
                 agg["_time_label"] = agg["_time"].dt.strftime("%b %Y")
             else:
                 agg["_time_label"] = agg["_time"].astype(str)
-
-            # Determine top 5 models from filtered data
-            displayed_models = list(agg.groupby("model")["token_count"].sum().nlargest(5).index)
 
             # Order models consistently (largest first)
             model_order = {m: i for i, m in enumerate(displayed_models)}
