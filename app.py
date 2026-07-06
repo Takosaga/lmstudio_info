@@ -666,10 +666,17 @@ def server(input, output, session):
             hole=0.4
         )
         
-        # Update layout
+        # Update layout with legend at top right and better margins
         fig.update_layout(
-            margin=dict(l=20, r=20, t=40, b=20),
-            legend=dict(orientation="h", yanchor="top", y=-0.2, xanchor="center", x=0.5),
+            margin=dict(l=20, r=50, t=40, b=20),  # Increased right margin for legend
+            legend=dict(
+                orientation="h",
+                yanchor="top",
+                y=-0.1,
+                xanchor="right",
+                x=1,
+                bgcolor="rgba(255,255,255,0.8)"
+            ),
             font=dict(size=12)
         )
         

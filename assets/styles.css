@@ -8,24 +8,20 @@
     display: flex;
     gap: 10px;
     margin-bottom: 15px;
-    align-items: stretch;
-}
-
-.cards-column,
-.chart-column {
-    max-height: 280px; /* Reduced from default */
+    align-items: flex-start;  /* Changed from stretch */
 }
 
 .cards-column {
     flex: 6;
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 8px; /* Reduced from 10px */
+    gap: 8px;
 }
 
 .chart-column {
     flex: 3;
     min-width: 180px;
+    /* Removed max-height constraint so donut can display fully */
 }
 
 /* Center plotly charts in their containers */
