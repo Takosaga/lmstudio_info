@@ -528,7 +528,7 @@ def server(input, output, session):
             color="model",
             color_discrete_map=dict(zip(displayed_models, palette)),
             barmode="stack",
-            labels={"_time": "Time", "token_count": "Tokens", "model": "Model"},
+            labels={"_time": "Time", "token_count": "Tokens", "model": "Model", "_time_label": ""},
             category_orders={
                 "model": [m for m, _ in sorted(model_order.items(), key=lambda x: x[1])],
                 "_time_label": agg.drop_duplicates("_time")["_time_label"].tolist(),
@@ -538,7 +538,6 @@ def server(input, output, session):
                 "model": True,
                 "token_count": True,
                 "_pct": ":.1f%%",
-                "_time_label": True,
             },
             custom_data=["model", "token_count", "_pct"],
         )
