@@ -663,12 +663,14 @@ def server(input, output, session):
                 'Input Tokens': '#457b9d',
                 'Output Tokens': '#e63946'
             },
-            hole=0.4
+            hole=0.3  # Reduced from 0.4 for better visibility in smaller space
         )
         
-        # Update layout without legend
+        # Set explicit dimensions to fit container
         fig.update_layout(
-            margin=dict(l=20, r=20, t=30, b=20),
+            width=250,
+            height=280,  # Slightly less than container max-height (300px)
+            margin=dict(l=10, r=10, t=20, b=10),
             font=dict(size=12)
         )
         

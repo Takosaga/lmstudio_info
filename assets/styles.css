@@ -20,9 +20,11 @@
 }
 
 .chart-column {
-    flex: 2.5;  /* Reduced from 3 */
-    min-width: 150px;
+    flex: 3.5;  /* Slightly increased from 2.5 to give more width */
+    min-width: 200px;
     max-height: 300px;  /* Same as cards, but smaller */
+    display: flex;
+    align-items: center;
 }
 
 /* Center plotly charts in their containers */
