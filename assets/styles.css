@@ -12,17 +12,17 @@
 }
 
 .cards-column {
-    flex: 6;
+    flex: 7;  /* Expanded from 6 */
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
-    max-height: 280px;  /* Match donut chart height */
+    max-height: 300px;  /* Increased from 280px */
 }
 
 .chart-column {
-    flex: 3;
-    min-width: 180px;
-    max-height: 280px;  /* Same as cards */
+    flex: 2.5;  /* Reduced from 3 */
+    min-width: 150px;
+    max-height: 300px;  /* Same as cards, but smaller */
 }
 
 /* Center plotly charts in their containers */
