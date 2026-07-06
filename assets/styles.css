@@ -8,7 +8,7 @@
     display: flex;
     gap: 10px;
     margin-bottom: 15px;
-    align-items: flex-start;  /* Changed from stretch */
+    align-items: stretch;  /* Match heights */
 }
 
 .cards-column {
@@ -16,12 +16,13 @@
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
+    max-height: 280px;  /* Match donut chart height */
 }
 
 .chart-column {
     flex: 3;
     min-width: 180px;
-    /* Removed max-height constraint so donut can display fully */
+    max-height: 280px;  /* Same as cards */
 }
 
 /* Center plotly charts in their containers */
